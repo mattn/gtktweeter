@@ -291,9 +291,9 @@ static void sha1_finish(
 }
 
 static unsigned char* sha1(
-		const unsigned char* input,
-		unsigned long int size,
-		unsigned char* digest)
+        const unsigned char* input,
+        unsigned long int size,
+        unsigned char* digest)
 {
     sha1_context ctx;
     sha1_starts(&ctx);
@@ -306,7 +306,7 @@ static const char hex_table[] = "0123456789abcdef";
 
 static char* to_hex_alloc(const char* input)
 {
-	unsigned long int i, j, len = strlen(input);
+    unsigned long int i, j, len = strlen(input);
     char* temp = (char*) calloc(len * 2 + 1, sizeof(char));
     for (i = j = 0; i < len; i++) {
         temp[j++] = hex_table[((unsigned char)input[i] & 0xF0) >> 4];
@@ -332,11 +332,11 @@ static char* base64encode_alloc(
     int j = 0;
     unsigned char char_array_3[3] = {0};
     unsigned char char_array_4[4] = {0};
-	char* temp;
-	char* ret;
+    char* temp;
+    char* ret;
 
-	size = size > 0 ? size : strlen(input);
-	ret = temp = (char*) calloc(size * 4 + 1, sizeof(char));
+    size = size > 0 ? size : strlen(input);
+    ret = temp = (char*) calloc(size * 4 + 1, sizeof(char));
     while (size--) {
         char_array_3[i++] = *(input++);
         if (i == 3) {
@@ -366,77 +366,77 @@ static char* base64encode_alloc(
         while((i++ < 3))
             *temp++ = '=';
     }
-	*temp = 0;
+    *temp = 0;
 
     return ret;
 }
 
 static char* urlencode_alloc(const char* url) {
-	unsigned long int i, len = strlen(url);
+    unsigned long int i, len = strlen(url);
     char* temp = (char*) calloc(len * 2 + 1, sizeof(char));
-	char* ret = temp;
+    char* ret = temp;
     for (i = 0; i < len; i++) {
-		unsigned char c = (unsigned char)url[i];
-		if (isalnum(c) || c == '_' || c == '.' || c == '-')
-			*temp++ = c;
-		else {
-			char buf[8];
-			sprintf(buf, "%02x", c);
-			*temp++ = '%';
-			*temp++ = buf[0];
-			*temp++ = toupper(buf[1]);
-		}
+        unsigned char c = (unsigned char)url[i];
+        if (isalnum(c) || c == '_' || c == '.' || c == '-')
+            *temp++ = c;
+        else {
+            char buf[8];
+            sprintf(buf, "%02x", c);
+            *temp++ = '%';
+            *temp++ = buf[0];
+            *temp++ = toupper(buf[1]);
+        }
     }
-	*temp = 0;
+    *temp = 0;
 
     return ret;
 }
 
 static unsigned char* hmac(
-		const unsigned char* key,
-		unsigned int keylen,
-		const unsigned char* data,
-		unsigned int datalen,
-		unsigned char* digest)
+        const unsigned char* key,
+        unsigned int keylen,
+        const unsigned char* data,
+        unsigned int datalen,
+        unsigned char* digest)
 {
-	int i;
-	sha1_context ctx;
-	unsigned char ipad[65];
-	unsigned char opad[65];
-	unsigned char inner[21];
-	
-	memset(ipad, 0, sizeof(ipad));
-	memset(opad, 0, sizeof(opad));
-	
-	if (keylen > 64) {
-		unsigned char keydigest[21];
-		sha1_starts(&ctx);
-		sha1_update(&ctx, key, keylen);
-		sha1_finish(&ctx, keydigest);
-		memcpy(ipad, keydigest, 20);
-		memcpy(opad, keydigest, 20);
-	}
-	else {
-		memcpy(ipad, key, keylen);
-		memcpy(opad, key, keylen);
-	}
-	
-	for (i = 0; i < 64; i++) {
-		ipad[i] ^= 0x36;
-		opad[i] ^= 0x5c;
-	}
-	
-	sha1_starts(&ctx);
-	sha1_update(&ctx, ipad, 64);
-	sha1_update(&ctx, data, datalen);
-	sha1_finish(&ctx, inner);
-	
-	sha1_starts(&ctx);
-	sha1_update(&ctx, opad, 64);
-	sha1_update(&ctx, inner, 20);
-	sha1_finish(&ctx, digest);
-	
-	return digest;
+    int i;
+    sha1_context ctx;
+    unsigned char ipad[65];
+    unsigned char opad[65];
+    unsigned char inner[21];
+    
+    memset(ipad, 0, sizeof(ipad));
+    memset(opad, 0, sizeof(opad));
+    
+    if (keylen > 64) {
+        unsigned char keydigest[21];
+        sha1_starts(&ctx);
+        sha1_update(&ctx, key, keylen);
+        sha1_finish(&ctx, keydigest);
+        memcpy(ipad, keydigest, 20);
+        memcpy(opad, keydigest, 20);
+    }
+    else {
+        memcpy(ipad, key, keylen);
+        memcpy(opad, key, keylen);
+    }
+    
+    for (i = 0; i < 64; i++) {
+        ipad[i] ^= 0x36;
+        opad[i] ^= 0x5c;
+    }
+    
+    sha1_starts(&ctx);
+    sha1_update(&ctx, ipad, 64);
+    sha1_update(&ctx, data, datalen);
+    sha1_finish(&ctx, inner);
+    
+    sha1_starts(&ctx);
+    sha1_update(&ctx, opad, 64);
+    sha1_update(&ctx, inner, 20);
+    sha1_finish(&ctx, digest);
+    
+    return digest;
 }
 
 typedef struct {
@@ -483,198 +483,200 @@ memfstrdup(MEMFILE* mf) {
 
 int main(int argc, char* argv[])
 {
-	char key[4096];
-	char query[4096];
-	char text[4096];
-	char auth[21];
-	char tmstr[9];
-	char nonce[19];
+    char key[4096];
+    char query[4096];
+    char text[4096];
+    char auth[21];
+    char tmstr[9];
+    char nonce[19];
     char error[CURL_ERROR_SIZE];
-	const char* access_url = "https://api.twitter.com/oauth/access_token";
-	const char* post_url = "http://twitter.com/statuses/update.json";
-	char* consumer_key;
-	char* consumer_secret;
-	char* username;
-	char* password;
-	char* message;
-	char* oauth_token = NULL;
-	char* oauth_token_secret = NULL;
-	CURL* curl = NULL;
-	CURLcode res = CURLE_OK;
-	struct curl_slist *headers = NULL;
-	char* tmp;
-	char* ptr;
-	char* stop;
+    const char* access_url = "https://api.twitter.com/oauth/access_token";
+    const char* post_url = "http://twitter.com/statuses/update.json";
+    char* consumer_key;
+    char* consumer_secret;
+    char* username;
+    char* password;
+    char* message;
+    char* oauth_token = NULL;
+    char* oauth_token_secret = NULL;
+    CURL* curl = NULL;
+    CURLcode res = CURLE_OK;
+    struct curl_slist *headers = NULL;
+    char* tmp;
+    char* ptr;
+    char* stop;
     MEMFILE* mf; // mem file
 
-	if (argc != 6) {
-		fprintf(stderr, "usage: %s [consumer_key] [consumer_secret] [username] [password] [message]\n", argv[0]);
-		exit(-1);
-	}
+    if (argc != 6) {
+        fprintf(stderr, "usage: %s [consumer_key] [consumer_secret] [username] [password] [message]\n", argv[0]);
+        exit(-1);
+    }
 
-	consumer_key = argv[1];
-	consumer_secret = argv[2];
-	username = argv[3];
-	password = argv[4];
-	message = argv[5];
+    consumer_key = argv[1];
+    consumer_secret = argv[2];
+    username = argv[3];
+    password = argv[4];
+    message = argv[5];
 
-	curl = curl_easy_init();
+    curl = curl_easy_init();
 
-	sprintf(tmstr, "%08d", time(0));
-	ptr = to_hex_alloc(tmstr);
-	strcpy(nonce, ptr);
-	free(ptr);
+    sprintf(tmstr, "%08d", time(0));
+    ptr = to_hex_alloc(tmstr);
+    strcpy(nonce, ptr);
+    free(ptr);
 
-	sprintf(key, "%s&", consumer_secret);
-	sprintf(query,
-		"oauth_consumer_key=%s"
-		"&oauth_nonce=%s"
-		"&oauth_signature_method=HMAC-SHA1"
-		"&oauth_timestamp=%s"
-		"&oauth_version=1.0"
-		"&x_auth_mode=client_auth"
-		"&x_auth_password=%s"
-		"&x_auth_username=%s",
-			consumer_key,
-			nonce,
-			tmstr,
-			password,
-			username);
+    sprintf(key, "%s&", consumer_secret);
+    sprintf(query,
+        "oauth_consumer_key=%s"
+        "&oauth_nonce=%s"
+        "&oauth_signature_method=HMAC-SHA1"
+        "&oauth_timestamp=%s"
+        "&oauth_version=1.0"
+        "&x_auth_mode=client_auth"
+        "&x_auth_password=%s"
+        "&x_auth_username=%s",
+            consumer_key,
+            nonce,
+            tmstr,
+            password,
+            username);
 
-	strcpy(text, "POST&");
-	ptr = urlencode_alloc(access_url);
-	strcat(text, ptr);
-	free(ptr);
-	strcat(text, "&");
-	ptr = urlencode_alloc(query);
-	strcat(text, ptr);
-	free(ptr);
+    strcpy(text, "POST&");
+    ptr = urlencode_alloc(access_url);
+    strcat(text, ptr);
+    free(ptr);
+    strcat(text, "&");
+    ptr = urlencode_alloc(query);
+    strcat(text, ptr);
+    free(ptr);
 
-	hmac((unsigned char*)key, strlen(key),
-			(unsigned char*)text, strlen(text), (unsigned char*) auth);
-	strcat(query, "&oauth_signature=");
-	tmp = base64encode_alloc(auth, 20);
-	ptr = urlencode_alloc(tmp);
-	strcat(query, ptr);
-	free(tmp);
-	free(ptr);
+    hmac((unsigned char*)key, strlen(key),
+            (unsigned char*)text, strlen(text), (unsigned char*) auth);
+    strcat(query, "&oauth_signature=");
+    tmp = base64encode_alloc(auth, 20);
+    ptr = urlencode_alloc(tmp);
+    strcat(query, ptr);
+    free(tmp);
+    free(ptr);
 
     mf = memfopen();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
-	curl_easy_setopt(curl, CURLOPT_URL, access_url);
+    curl_easy_setopt(curl, CURLOPT_URL, access_url);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, mf);
-	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
-	res = curl_easy_perform(curl);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+    res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         fputs(error, stderr);
         memfclose(mf);
         goto leave;
     }
-	ptr = memfstrdup(mf);
-	memfclose(mf);
-	tmp = strstr(ptr, "oauth_token=");
-	if (tmp) {
-		stop = strchr(tmp, '&');
-		if (stop) {
-			oauth_token = (char*) calloc(stop - tmp - 11, sizeof(char));
-			strncpy(oauth_token, tmp + 12, stop - tmp - 12);
-		} else
-			oauth_token = strdup(tmp + 12);
-	}
-	tmp = strstr(ptr, "oauth_token_secret=");
-	if (tmp) {
-		stop = strchr(tmp, '&');
-		if (stop) {
-			oauth_token_secret = (char*) calloc(stop - tmp - 18, sizeof(char));
-			strncpy(oauth_token_secret, tmp + 19, stop - tmp - 19);
-		} else
-			oauth_token = strdup(tmp + 19);
-	}
-	//printf("oauth_token=%s\n", oauth_token);
-	//printf("oauth_token_secret=%s\n", oauth_token_secret);
-	free(ptr);
+    ptr = memfstrdup(mf);
+    memfclose(mf);
+    tmp = strstr(ptr, "oauth_token=");
+    if (tmp) {
+        stop = strchr(tmp, '&');
+        if (stop) {
+            oauth_token = (char*) calloc(stop - tmp - 11, sizeof(char));
+            strncpy(oauth_token, tmp + 12, stop - tmp - 12);
+        } else
+            oauth_token = strdup(tmp + 12);
+    }
+    tmp = strstr(ptr, "oauth_token_secret=");
+    if (tmp) {
+        stop = strchr(tmp, '&');
+        if (stop) {
+            oauth_token_secret = (char*) calloc(stop - tmp - 18, sizeof(char));
+            strncpy(oauth_token_secret, tmp + 19, stop - tmp - 19);
+        } else
+            oauth_token = strdup(tmp + 19);
+    }
+    //printf("oauth_token=%s\n", oauth_token);
+    //printf("oauth_token_secret=%s\n", oauth_token_secret);
+    free(ptr);
 
-	sprintf(tmstr, "%08d", time(0));
-	ptr = to_hex_alloc(tmstr);
-	strcpy(nonce, ptr);
-	free(ptr);
+    sprintf(tmstr, "%08d", time(0));
+    ptr = to_hex_alloc(tmstr);
+    strcpy(nonce, ptr);
+    free(ptr);
 
-	sprintf(key, "%s&%s", consumer_secret, oauth_token_secret);
-	tmp = urlencode_alloc(message);
-	sprintf(query,
-		"oauth_consumer_key=%s"
-		"&oauth_nonce=%s"
-		"&oauth_signature_method=HMAC-SHA1"
-		"&oauth_timestamp=%s"
-		"&oauth_token=%s"
-		"&oauth_version=1.0"
-		"&status=%s",
-			consumer_key,
-			nonce,
-			tmstr,
-			oauth_token,
-			tmp);
-	free(tmp);
+    sprintf(key, "%s&%s", consumer_secret, oauth_token_secret);
+    tmp = urlencode_alloc(message);
+    sprintf(query,
+        "oauth_consumer_key=%s"
+        "&oauth_nonce=%s"
+        "&oauth_signature_method=HMAC-SHA1"
+        "&oauth_timestamp=%s"
+        "&oauth_token=%s"
+        "&oauth_version=1.0"
+        "&status=%s",
+            consumer_key,
+            nonce,
+            tmstr,
+            oauth_token,
+            tmp);
+    free(tmp);
 
-	strcpy(text, "POST&");
-	ptr = urlencode_alloc(post_url);
-	strcat(text, ptr);
-	free(ptr);
-	strcat(text, "&");
-	ptr = urlencode_alloc(query);
-	strcat(text, ptr);
-	free(ptr);
+    strcpy(text, "POST&");
+    ptr = urlencode_alloc(post_url);
+    strcat(text, ptr);
+    free(ptr);
+    strcat(text, "&");
+    ptr = urlencode_alloc(query);
+    strcat(text, ptr);
+    free(ptr);
 
-	hmac((unsigned char*)key, strlen(key),
-			(unsigned char*)text, strlen(text), (unsigned char*) auth);
-	stop = strstr(query, "&status=");
-	if (stop) *stop = 0;
-	strcat(query, "&oauth_signature=");
-	tmp = base64encode_alloc(auth, 20);
-	ptr = urlencode_alloc(tmp);
-	strcat(query, ptr);
-	free(tmp);
-	free(ptr);
+    hmac((unsigned char*)key, strlen(key),
+            (unsigned char*)text, strlen(text), (unsigned char*) auth);
+    stop = strstr(query, "&status=");
+    if (stop) *stop = 0;
+    strcat(query, "&oauth_signature=");
+    tmp = base64encode_alloc(auth, 20);
+    ptr = urlencode_alloc(tmp);
+    strcat(query, ptr);
+    free(tmp);
+    free(ptr);
 
-	ptr = query;
-	while (*ptr) {
-		if (*ptr == '&') *ptr = ',';
-		ptr++;
-	}
-	sprintf(text, "Authorization: OAuth %s", query);
-	headers = curl_slist_append(headers, text);
+    ptr = query;
+    while (*ptr) {
+        if (*ptr == '&') *ptr = ',';
+        ptr++;
+    }
+    sprintf(text, "Authorization: OAuth %s", query);
+    headers = curl_slist_append(headers, text);
 
-	ptr = urlencode_alloc(message);
-	sprintf(text, "status=%s", ptr);
-	free(ptr);
+    ptr = urlencode_alloc(message);
+    sprintf(text, "status=%s", ptr);
+    free(ptr);
 
     mf = memfopen();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
-	curl_easy_setopt(curl, CURLOPT_URL, post_url);
+    curl_easy_setopt(curl, CURLOPT_URL, post_url);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, text);
-	curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, mf);
-	curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
-	res = curl_easy_perform(curl);
-	curl_slist_free_all(headers);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+    res = curl_easy_perform(curl);
+    curl_slist_free_all(headers);
     if (res != CURLE_OK) {
         fputs(error, stderr);
         memfclose(mf);
         goto leave;
     }
-	ptr = memfstrdup(mf);
-	memfclose(mf);
-	printf("%s\n", ptr);
-	free(ptr);
+    ptr = memfstrdup(mf);
+    memfclose(mf);
+    printf("%s\n", ptr);
+    free(ptr);
 
 leave:
-	curl_easy_cleanup(curl);
+    curl_easy_cleanup(curl);
     return 0;
 }
+
+/* vim:set et sw=4: */
