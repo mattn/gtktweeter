@@ -1,0 +1,34 @@
+CFLAGS=
+
+all : gtktweeter.exe
+
+gtktweeter.exe : gtktweeter.o gtktweeter.res
+	gcc -o gtktweeter.exe \
+		-Lc:/gtk/lib \
+		gtktweeter.o \
+		gtktweeter.res \
+        -Lc:/gtk/lib -lgtk-win32-2.0 -lgdk-win32-2.0 -latk-1.0 -lgio-2.0 -lgdk_pixbuf-2.0 -lpangowin32-1.0 -lgdi32 -lpangocairo-1.0 -lpango-1.0 -lcairo -lgobject-2.0 -lgmodule-2.0 -lxml2 -lgthread-2.0 -lglib-2.0 -lintl \
+		-lcurldll \
+		-lshell32
+
+gtktweeter.o : gtktweeter.c
+	gcc -c $(CFLAGS) -o gtktweeter.o \
+        -mms-bitfields -Ic:/gtk/include/gtk-2.0 -Ic:/gtk/lib/gtk-2.0/include -Ic:/gtk/include/atk-1.0 -Ic:/gtk/include/cairo -Ic:/gtk/include/pango-1.0 -Ic:/gtk/include/glib-2.0 -Ic:/gtk/lib/glib-2.0/include -Ic:/gtk/include/freetype2 -Ic:/gtk/include -Ic:/gtk/include/libpng14 -Ic:/gtk/include/libxml2 \
+		gtktweeter.c
+
+gtktweeter.res : gtktweeter.rc
+	windres -O coff gtktweeter.rc gtktweeter.res
+
+clean:
+	-rm *.o *.res *.exe
+
+package:
+	-mkdir win32package\data 2> NUL
+	cp data/logo.ico win32package/data/.
+	cp data/*.gif win32package/data/.
+	cp data/*.png win32package/data/.
+	-mkdir win32package\share\locale\ja\LC_MESSAGES 2> NUL
+	msgfmt -o win32package/share/locale/ja/LC_MESSAGES/gtktweeter.mo po/ja.po
+	cp libcurl.dll win32package
+	cp zlib1.dll win32package
+
