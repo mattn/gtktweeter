@@ -22,7 +22,7 @@
  */
 #include <curl/curl.h>
 #include <ctype.h>
-#include <memory.h>
+#include <stdlib.h>
 #include <string.h>
 
 /**
@@ -491,7 +491,7 @@ int main(int argc, char* argv[])
     char query[4096];
     char text[4096];
     char auth[21];
-    char tmstr[9];
+    char tmstr[10];
     char nonce[21];
     char error[CURL_ERROR_SIZE];
     const char* access_url = "https://api.twitter.com/oauth/access_token";
@@ -522,12 +522,11 @@ int main(int argc, char* argv[])
 
     curl = curl_easy_init();
 
-    sprintf(tmstr, "%08d", time(0));
+    sprintf(tmstr, "%08d", (int) time(0));
     ptr = to_hex_alloc(tmstr);
     strcpy(nonce, ptr);
     free(ptr);
 
-    sprintf(key, "%s&", consumer_secret);
     sprintf(query,
         "oauth_consumer_key=%s"
         "&oauth_nonce=%s"
@@ -552,6 +551,7 @@ int main(int argc, char* argv[])
     strcat(text, ptr);
     free(ptr);
 
+    sprintf(key, "%s&", consumer_secret);
     hmac((unsigned char*)key, strlen(key),
             (unsigned char*)text, strlen(text), (unsigned char*) auth);
     strcat(query, "&oauth_signature=");
@@ -560,6 +560,7 @@ int main(int argc, char* argv[])
     strcat(query, ptr);
     free(tmp);
     free(ptr);
+    printf("%s\n", query);
 
     mf = memfopen();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
@@ -577,6 +578,8 @@ int main(int argc, char* argv[])
         goto leave;
     }
     ptr = memfstrdup(mf);
+    printf("%s\n", ptr);
+    if (1) goto leave;
     memfclose(mf);
     tmp = strstr(ptr, "oauth_token=");
     if (tmp) {
@@ -603,7 +606,7 @@ int main(int argc, char* argv[])
     //printf("oauth_token_secret=%s\n", oauth_token_secret);
     free(ptr);
 
-    sprintf(tmstr, "%08d", time(0));
+    sprintf(tmstr, "%08d", (int) time(0));
     ptr = to_hex_alloc(tmstr);
     strcpy(nonce, ptr);
     free(ptr);
