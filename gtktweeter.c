@@ -496,8 +496,8 @@ int main(int argc, char* argv[])
     char error[CURL_ERROR_SIZE];
     const char* access_url = "https://api.twitter.com/oauth/access_token";
     const char* post_url = "http://twitter.com/statuses/update.json";
-    char* consumer_key = "knvZzOc7BH9dDPFgTJJsng";
-    char* consumer_secret = "Npa03C4TfaI1YcZ4So0dSO4qeNigAsupPq7PGPM";
+    char* consumer_key = "";
+    char* consumer_secret = "";
     char* username;
     char* password;
     char* message;
