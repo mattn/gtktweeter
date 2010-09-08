@@ -26,7 +26,7 @@
 #include <string.h>
 
 /**
- * for xauth
+ * sha1/hmac
  */
 typedef struct
 {
@@ -485,8 +485,13 @@ memfstrdup(MEMFILE* mf) {
     return buf;
 }
 
-int main(int argc, char* argv[])
-{
+char*
+get_request_token_alloc(
+        CURL* curl,
+        const char* consumer_key,
+        const char* consumer_secret) {
+
+    const char* request_token_url = "http://twitter.com/oauth/request_token";
     char key[4096];
     char query[4096];
     char text[4096];
@@ -494,33 +499,11 @@ int main(int argc, char* argv[])
     char tmstr[10];
     char nonce[21];
     char error[CURL_ERROR_SIZE];
-    const char* access_url = "https://api.twitter.com/oauth/access_token";
-    const char* post_url = "http://twitter.com/statuses/update.json";
-    char* consumer_key = "";
-    char* consumer_secret = "";
-    char* username;
-    char* password;
-    char* message;
-    char* oauth_token = NULL;
-    char* oauth_token_secret = NULL;
-    CURL* curl = NULL;
-    CURLcode res = CURLE_OK;
-    struct curl_slist *headers = NULL;
+    char* ptr = NULL;
     char* tmp;
-    char* ptr;
     char* stop;
     MEMFILE* mf; // mem file
-
-    if (argc != 4) {
-        fprintf(stderr, "usage: %s [username] [password] [message]\n", argv[0]);
-        exit(-1);
-    }
-
-    username = argv[1];
-    password = argv[2];
-    message = argv[3];
-
-    curl = curl_easy_init();
+    CURLcode res = CURLE_OK;
 
     sprintf(tmstr, "%08d", (int) time(0));
     ptr = to_hex_alloc(tmstr);
@@ -530,20 +513,16 @@ int main(int argc, char* argv[])
     sprintf(query,
         "oauth_consumer_key=%s"
         "&oauth_nonce=%s"
+        "&oauth_request_method=POST"
         "&oauth_signature_method=HMAC-SHA1"
         "&oauth_timestamp=%s"
-        "&oauth_version=1.0"
-        "&x_auth_mode=client_auth"
-        "&x_auth_password=%s"
-        "&x_auth_username=%s",
+        "&oauth_version=1.0",
             consumer_key,
             nonce,
-            tmstr,
-            password,
-            username);
+            tmstr);
 
     strcpy(text, "POST&");
-    ptr = urlencode_alloc(access_url);
+    ptr = urlencode_alloc(request_token_url);
     strcat(text, ptr);
     free(ptr);
     strcat(text, "&");
@@ -560,12 +539,11 @@ int main(int argc, char* argv[])
     strcat(query, ptr);
     free(tmp);
     free(ptr);
-    printf("%s\n", query);
 
     mf = memfopen();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
-    curl_easy_setopt(curl, CURLOPT_URL, access_url);
+    curl_easy_setopt(curl, CURLOPT_URL, request_token_url);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
@@ -575,47 +553,132 @@ int main(int argc, char* argv[])
     if (res != CURLE_OK) {
         fputs(error, stderr);
         memfclose(mf);
-        goto leave;
+        return NULL;
     }
     ptr = memfstrdup(mf);
-    printf("%s\n", ptr);
-    if (1) goto leave;
     memfclose(mf);
-    tmp = strstr(ptr, "oauth_token=");
-    if (tmp) {
-        stop = strchr(tmp, '&');
-        if (stop) {
-            oauth_token = (char*) calloc(stop - tmp - 11, sizeof(char));
-            strncpy(oauth_token, tmp + 12, stop - tmp - 12);
-        } else
-            oauth_token = strdup(tmp + 12);
-    } else {
-        fputs(ptr, stderr);
-        goto leave;
-    }
-    tmp = strstr(ptr, "oauth_token_secret=");
-    if (tmp) {
-        stop = strchr(tmp, '&');
-        if (stop) {
-            oauth_token_secret = (char*) calloc(stop - tmp - 18, sizeof(char));
-            strncpy(oauth_token_secret, tmp + 19, stop - tmp - 19);
-        } else
-            oauth_token = strdup(tmp + 19);
-    }
-    //printf("oauth_token=%s\n", oauth_token);
-    //printf("oauth_token_secret=%s\n", oauth_token_secret);
-    free(ptr);
+    return ptr;
+}
+
+char*
+get_access_token_alloc(
+        CURL* curl,
+        const char* consumer_key,
+        const char* consumer_secret,
+        const char* request_token,
+        const char* request_token_secret,
+        const char* verifier) {
+
+    const char* access_token_url = "https://api.twitter.com/oauth/access_token";
+    char key[4096];
+    char query[4096];
+    char text[4096];
+    char auth[21];
+    char tmstr[10];
+    char nonce[21];
+    char error[CURL_ERROR_SIZE];
+    char* ptr = NULL;
+    char* tmp;
+    char* stop;
+    MEMFILE* mf; // mem file
+    CURLcode res = CURLE_OK;
 
     sprintf(tmstr, "%08d", (int) time(0));
     ptr = to_hex_alloc(tmstr);
     strcpy(nonce, ptr);
     free(ptr);
 
-    sprintf(key, "%s&%s", consumer_secret, oauth_token_secret);
-    tmp = urlencode_alloc(message);
     sprintf(query,
         "oauth_consumer_key=%s"
         "&oauth_nonce=%s"
+        "&oauth_request_method=POST"
+        "&oauth_signature_method=HMAC-SHA1"
+        "&oauth_timestamp=%s"
+        "&oauth_token=%s"
+        "&oauth_token_secret=%s"
+        "&oauth_verifier=%s"
+        "&oauth_version=1.0",
+            consumer_key,
+            nonce,
+            tmstr,
+            request_token,
+            request_token_secret,
+            verifier);
+
+    strcpy(text, "POST&");
+    ptr = urlencode_alloc(access_token_url);
+    strcat(text, ptr);
+    free(ptr);
+    strcat(text, "&");
+    ptr = urlencode_alloc(query);
+    strcat(text, ptr);
+    free(ptr);
+
+    sprintf(key, "%s&", consumer_secret);
+    hmac((unsigned char*)key, strlen(key),
+            (unsigned char*)text, strlen(text), (unsigned char*) auth);
+    strcat(query, "&oauth_signature=");
+    tmp = base64encode_alloc(auth, 20);
+    ptr = urlencode_alloc(tmp);
+    strcat(query, ptr);
+    free(tmp);
+    free(ptr);
+
+    mf = memfopen();
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
+    curl_easy_setopt(curl, CURLOPT_URL, access_token_url);
+    curl_easy_setopt(curl, CURLOPT_POST, 1);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, mf);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+    res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        fputs(error, stderr);
+        memfclose(mf);
+        return NULL;
+    }
+    ptr = memfstrdup(mf);
+    memfclose(mf);
+    return ptr;
+}
+
+char*
+update_status(
+        CURL* curl,
+        const char* consumer_key,
+        const char* consumer_secret,
+        const char* access_token,
+        const char* access_token_secret,
+        const char* status) {
+
+    const char* update_url = "http://twitter.com/statuses/update.json";
+    char key[4096];
+    char query[4096];
+    char text[4096];
+    char auth[21];
+    char tmstr[10];
+    char nonce[21];
+    char error[CURL_ERROR_SIZE];
+    char* ptr = NULL;
+    char* tmp;
+    char* stop;
+    char* status_encoded;
+    MEMFILE* mf; // mem file
+    CURLcode res = CURLE_OK;
+
+    sprintf(tmstr, "%08d", (int) time(0));
+    ptr = to_hex_alloc(tmstr);
+    strcpy(nonce, ptr);
+    free(ptr);
+
+    status_encoded = urlencode_alloc(status);
+
+    sprintf(query,
+        "oauth_consumer_key=%s"
+        "&oauth_nonce=%s"
+        "&oauth_request_method=POST"
         "&oauth_signature_method=HMAC-SHA1"
         "&oauth_timestamp=%s"
         "&oauth_token=%s"
@@ -624,12 +687,13 @@ int main(int argc, char* argv[])
             consumer_key,
             nonce,
             tmstr,
-            oauth_token,
-            tmp);
-    free(tmp);
+            access_token,
+            status_encoded);
+
+    free(status_encoded);
 
     strcpy(text, "POST&");
-    ptr = urlencode_alloc(post_url);
+    ptr = urlencode_alloc(update_url);
     strcat(text, ptr);
     free(ptr);
     strcat(text, "&");
@@ -637,10 +701,9 @@ int main(int argc, char* argv[])
     strcat(text, ptr);
     free(ptr);
 
+    sprintf(key, "%s&%s", consumer_secret, access_token_secret);
     hmac((unsigned char*)key, strlen(key),
             (unsigned char*)text, strlen(text), (unsigned char*) auth);
-    stop = strstr(query, "&status=");
-    if (stop) *stop = 0;
     strcat(query, "&oauth_signature=");
     tmp = base64encode_alloc(auth, 20);
     ptr = urlencode_alloc(tmp);
@@ -648,40 +711,139 @@ int main(int argc, char* argv[])
     free(tmp);
     free(ptr);
 
-    ptr = query;
-    while (*ptr) {
-        if (*ptr == '&') *ptr = ',';
-        ptr++;
-    }
-    sprintf(text, "Authorization: OAuth %s", query);
-    headers = curl_slist_append(headers, text);
-
-    ptr = urlencode_alloc(message);
-    sprintf(text, "status=%s", ptr);
-    free(ptr);
-
     mf = memfopen();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
-    curl_easy_setopt(curl, CURLOPT_URL, post_url);
+    curl_easy_setopt(curl, CURLOPT_URL, update_url);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, text);
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, mf);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
     res = curl_easy_perform(curl);
-    curl_slist_free_all(headers);
     if (res != CURLE_OK) {
         fputs(error, stderr);
         memfclose(mf);
-        goto leave;
+        return NULL;
     }
     ptr = memfstrdup(mf);
     memfclose(mf);
+    return ptr;
+}
+
+int main(int argc, char* argv[])
+{
+    char text[4096];
+    char verifier[256];
+    const char* auth_url = "https://twitter.com/oauth/authorize";
+    const char* post_url = "http://twitter.com/statuses/update.json";
+    char* consumer_key = "YOUR_CONSUMER_KEY";
+    char* consumer_secret = "YOUR_CONSUMER_SECRET";
+    CURL* curl = NULL;
+    char* tmp;
+    char* ptr;
+    char* stop;
+
+    curl = curl_easy_init();
+
+    const char* request_token = NULL;
+    const char* request_token_secret = NULL;
+    const char* access_token = NULL;
+    const char* access_token_secret = NULL;
+
+    //----------------------------------------------
+    // get request token
+    ptr = get_request_token_alloc(
+            curl,
+            consumer_key,
+            consumer_secret);
+    printf("%s\n", ptr);
+
+    // parse response parameters
+    tmp = ptr;
+    while (tmp && *tmp) {
+        stop = strchr(tmp, '&');
+        if (stop) {
+            *stop = 0;
+            if (!strncmp(tmp, "oauth_token=", 12)) {
+                request_token = strdup(tmp + 12);
+            }
+            if (!strncmp(tmp, "oauth_token_secret=", 19)) {
+                request_token_secret = strdup(tmp + 19);
+            }
+            tmp = stop + 1;
+        } else
+            break;
+    }
     free(ptr);
 
+    if (!request_token || !request_token_secret) {
+        return -1;
+    }
+    printf("request_token=%s\n", request_token);
+    printf("request_token_secret=%s\n", request_token_secret);
+
+#ifdef _WIN32
+    sprintf(text, "%s?oauth_token=%s", auth_url, request_token);
+    ShellExecute(NULL, "open", text, "", "", SW_NORMAL);
+#else
+    sprintf(text, "xdg-open '%s?oauth_token=%s' &", auth_url, request_token);
+    system(text);
+#endif
+
+    printf("PIN: ");
+    scanf("%s", verifier);
+
+    //----------------------------------------------
+    // get access token.
+    ptr = get_access_token_alloc(
+            curl,
+            consumer_key,
+            consumer_secret,
+            request_token,
+            request_token_secret,
+            verifier);
+    printf("%s\n", ptr);
+
+    // parse resposne parameters
+    tmp = ptr;
+    while (tmp && *tmp) {
+        stop = strchr(tmp, '&');
+        if (stop) {
+            *stop = 0;
+            if (!strncmp(tmp, "oauth_token=", 12)) {
+                access_token = strdup(tmp + 12);
+            }
+            if (!strncmp(tmp, "oauth_token_secret=", 19)) {
+                access_token_secret = strdup(tmp + 19);
+            }
+            tmp = stop + 1;
+        } else
+            break;
+    }
+    free(ptr);
+
+    if (!access_token || !access_token_secret) {
+        return -1;
+    }
+    printf("access_token=%s\n", access_token);
+    printf("access_token_secret=%s\n", access_token_secret);
+
+    // update status
+    ptr = update_status(
+            curl,
+            consumer_key,
+            consumer_secret,
+            access_token,
+            access_token_secret,
+            "helloworld");
+    printf("%s\n", ptr);
+
 leave:
+    if (request_token) free(request_token);
+    if (request_token_secret) free(request_token_secret);
+    if (access_token) free(access_token);
+    if (access_token_secret) free(access_token_secret);
     curl_easy_cleanup(curl);
     return 0;
 }
