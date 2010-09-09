@@ -30,12 +30,12 @@ msgstr "ステータス送信中..."
 
 #: gtktweeter.c:1663
 msgid " Setup"
-msgstr ""
+msgstr " セットアップ"
 
 #. pin
 #: gtktweeter.c:1666
 msgid "_PIN Code:"
-msgstr ""
+msgstr "PINコード(_PIN):"
 
 #: gtktweeter.c:2216 gtktweeter.c:2217
 msgid "go home"
@@ -47,7 +47,7 @@ msgstr "リロード"
 
 #: gtktweeter.c:2240 gtktweeter.c:2241
 msgid "show config dialog"
-msgstr ""
+msgstr "設定ダイアログを表示"
 
 #: gtktweeter.c:2268 gtktweeter.c:2269
 msgid "what are you doing?"
@@ -60,11 +60,3 @@ msgstr "ステータス送信"
 #~ msgid "no server response"
 #~ msgstr "サーバからの応答がありません"
 
-#~ msgid " Login"
-#~ msgstr " ログイン"
-
-#~ msgid "_Mail:"
-#~ msgstr "メール(_M):"
-
-#~ msgid "_Password:"
-#~ msgstr "パスワード(_P):"
