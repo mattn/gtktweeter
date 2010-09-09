@@ -1,0 +1,30 @@
+* version 0.1.0
+	rename to 'gtktweeter' cause by rule of twitter application registration.
+* version 0.0.9
+	changed behaviour to show user's status. not user's friends timeline.
+	changed loading animation. before was used dialog interface. but it was un-usuable.
+* version 0.0.8
+	changed app link to 'http://mattn.kaoriya.net/gtktwitter.xml'.
+	move code to github from googlecode.
+* version 0.0.7
+	supported twitter user agent.
+* version 0.0.6
+	supported load/save configs.
+* version 0.0.5
+	supported ETag and If-Modified-Since.
+	make tiny url with tinyurl.com.
+	add timer for reload.
+	make be possible to browse friends timeline.
+	add tooltips.
+* version 0.0.4
+	anchor for URL links.
+	anchor for @ mark.
+	changing sensitive of buttons.
+* version 0.0.3
+	fixed overflow code.
+	make spec file for rpm.
+* version 0.0.2
+	fixed DATAPATH for windows.
+	reload.png is not found. X-(
+* version 0.0.1
+	first release.
