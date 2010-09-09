@@ -2286,7 +2286,7 @@ main(int argc, char* argv[]) {
         pango_font_description_free(pangoFont);
     } */
 
-    //update_friends_statuses(window, window);
+    update_friends_statuses(window, window);
     gtk_main();
 
     gdk_threads_leave();
