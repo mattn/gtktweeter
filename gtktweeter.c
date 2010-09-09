@@ -373,7 +373,6 @@ static void sha1_finish(
     PUT_UINT32(ctx->state[4], digest, 16);
 }
 
-/* no-use
 static unsigned char* sha1(
         const unsigned char* input,
         unsigned long int size,
@@ -385,7 +384,6 @@ static unsigned char* sha1(
     sha1_finish(&ctx, digest);
     return digest;
 }
-*/
 
 static const char hex_table[] = "0123456789abcdef";
 
@@ -524,6 +522,15 @@ static unsigned char* hmac(
     return digest;
 }
 
+static char*
+get_nonce_alloc() {
+    char buf[256];
+    char digest[256];
+    snprintf(buf, sizeof(buf), "%d %d", (int) time(NULL), (int)rand());
+    sha1(buf, strlen(buf), digest);
+    return to_hex_alloc(digest);
+}
+
 typedef struct {
     char* data;     // response data from server
     size_t size;    // response size of data
@@ -582,7 +589,7 @@ get_request_token_alloc(
     char text[4096];
     char auth[21];
     char tmstr[10];
-    char nonce[21];
+    char nonce[30] = {0};
     char error[CURL_ERROR_SIZE];
     char* ptr = NULL;
     char* tmp;
@@ -590,8 +597,8 @@ get_request_token_alloc(
     CURLcode res = CURLE_OK;
 
     snprintf(tmstr, sizeof(tmstr), "%08d", (int) time(0));
-    ptr = to_hex_alloc(tmstr);
-    strcpy(nonce, ptr);
+    ptr = get_nonce_alloc();
+    strncpy(nonce, ptr, sizeof(nonce)-1);
     free(ptr);
 
     snprintf(query, sizeof(query),
@@ -659,7 +666,7 @@ get_access_token_alloc(
     char text[4096];
     char auth[21];
     char tmstr[10];
-    char nonce[21];
+    char nonce[30] = {0};
     char error[CURL_ERROR_SIZE];
     char* ptr = NULL;
     char* tmp;
@@ -667,8 +674,8 @@ get_access_token_alloc(
     CURLcode res = CURLE_OK;
 
     snprintf(tmstr, sizeof(tmstr), "%08d", (int) time(0));
-    ptr = to_hex_alloc(tmstr);
-    strcpy(nonce, ptr);
+    ptr = get_nonce_alloc();
+    strncpy(nonce, ptr, sizeof(nonce)-1);
     free(ptr);
 
     snprintf(query, sizeof(query),
@@ -1102,7 +1109,7 @@ update_friends_statuses_thread(gpointer data) {
     char text[4096];
     char auth[21];
     char tmstr[10];
-    char nonce[21];
+    char nonce[30] = {0};
     char url[2048];
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
@@ -1140,8 +1147,8 @@ update_friends_statuses_thread(gpointer data) {
         strncpy(url, SERVICE_SELF_STATUS_URL, sizeof(url)-1);
 
     snprintf(tmstr, sizeof(tmstr), "%08d", (int) time(0));
-    ptr = to_hex_alloc(tmstr);
-    strcpy(nonce, ptr);
+    ptr = get_nonce_alloc();
+    strncpy(nonce, ptr, sizeof(nonce)-1);
     free(ptr);
 
     snprintf(query, sizeof(query),
@@ -1207,7 +1214,7 @@ update_friends_statuses_thread(gpointer data) {
 
     if (http_status != 200) {
         if (body) {
-		    result_str = xml_decode_alloc(body);
+            result_str = xml_decode_alloc(body);
         } else {
             result_str = g_strdup(_("unknown server response"));
         }
@@ -1235,7 +1242,7 @@ update_friends_statuses_thread(gpointer data) {
     doc = body ? xmlParseDoc((xmlChar*) body) : NULL;
     if (!doc) {
         if (body)
-		    result_str = xml_decode_alloc(body);
+            result_str = xml_decode_alloc(body);
         else
             result_str = g_strdup(_("unknown server response"));
         goto leave;
@@ -1472,7 +1479,7 @@ post_status_thread(gpointer data) {
     char query[4096];
     char text[4096];
     char tmstr[10];
-    char nonce[21];
+    char nonce[30] = {0};
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
     MEMFILE* mbody;
@@ -1486,8 +1493,8 @@ post_status_thread(gpointer data) {
     if (!status || strlen(status) == 0) return NULL;
 
     snprintf(tmstr, sizeof(tmstr), "%08d", (int) time(0));
-    ptr = to_hex_alloc(tmstr);
-    strcpy(nonce, ptr);
+    ptr = get_nonce_alloc();
+    strncpy(nonce, ptr, sizeof(nonce)-1);
     free(ptr);
 
     status_encoded = urlencode_alloc(status);
@@ -1549,7 +1556,7 @@ post_status_thread(gpointer data) {
     body = memfstrdup(mbody);
     if (http_status != 200) {
         if (body) {
-		    result_str = xml_decode_alloc(body);
+            result_str = xml_decode_alloc(body);
         } else {
             result_str = g_strdup(_("unknown server response"));
         }
@@ -1705,7 +1712,7 @@ setup_dialog(GtkWidget* window) {
     ShellExecute(NULL, "open", text, "", "", SW_NORMAL);
 #else
     snprintf(text, sizeof(text)-1, "xdg-open '%s?oauth_token=%s' &", SERVICE_AUTH_URL, request_token);
-    system(text);
+    (int) system(text);
 #endif
 
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK) {
@@ -2092,6 +2099,8 @@ main(int argc, char* argv[]) {
 
     GtkTextBuffer* buffer = NULL;
     GtkTextTag* date_tag = NULL;
+
+    srandom(time(0));
 
 #ifdef _LIBINTL_H
     setlocale(LC_CTYPE, "");
