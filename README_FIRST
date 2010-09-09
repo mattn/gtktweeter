@@ -1,0 +1,27 @@
+GtkTweeter is using OAuth protocol for twitter APIs.
+And OAuth protocol require CONSUEMR_KEY and CONSUMER_SECRET.
+They are user own secret value on 'twitter.com'. Thus you should change the
+ code for using gtktweeter.
+
+1. REGISTRATION
+
+  Visit 'http://twitter.com/apps/new' and input required values.
+  If complete thems, You can get CONSUMER_KEY and CONSUMER_SECRET.
+
+2. CHANGE SOURCE
+
+  Open 'gtktweeter.c' with your favorite text editor.
+  And search word 'CONSUMER_KEY'. You will find the following code.
+
+    application_info.consumer_key = strdup("CONSUMER_KEY");
+    application_info.consumer_secret = strdup("CONSUMER_SECRET");
+
+  Then you change the part to actual CONSUMER_KEY and CONSUMER_SECRET.
+
+3. USING
+
+  Following start gtktweeter, you will see the web browser and ask approval of
+  using gtktweeter. If type 'accept', you can get 'PIN' code that few digit
+  number. Copy the number and paste to input text on gtktweeter.
+  If you can do it below, you'll have finished the initialize setup.
+  This configuration is needed first time. Enjoy. 
