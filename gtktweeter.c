@@ -1653,6 +1653,7 @@ setup_dialog(GtkWidget* window) {
     const char* request_token = NULL;
     const char* request_token_secret = NULL;
     char text[4096];
+    int r = 0;
 
     /* login dialog */
     dialog = gtk_dialog_new();
@@ -1720,7 +1721,7 @@ setup_dialog(GtkWidget* window) {
     ShellExecute(NULL, "open", text, "", "", SW_NORMAL);
 #else
     snprintf(text, sizeof(text)-1, "xdg-open '%s?oauth_token=%s' &", SERVICE_AUTH_URL, request_token);
-    (int) system(text);
+    r = system(text);
 #endif
 
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK) {
