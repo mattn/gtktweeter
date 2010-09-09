@@ -935,8 +935,7 @@ process_func(
             &error);
     while(info.processing) {
         gdk_threads_enter();
-        while(gtk_events_pending())
-            gtk_main_iteration();
+        gtk_main_iteration_do(TRUE);
         gdk_threads_leave();
         g_thread_yield();
     }
@@ -1218,6 +1217,9 @@ update_friends_statuses_thread(gpointer data) {
     body = memfstrdup(mbody);
     memfclose(mbody);
 
+    if (http_status == 304) {
+        goto leave;
+    }
     if (http_status != 200) {
         if (body) {
             result_str = xml_decode_alloc(body);
