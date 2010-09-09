@@ -1,5 +1,6 @@
 * version 0.1.0
 	rename to 'gtktweeter' cause by rule of twitter application registration.
+	change license to BSD.
 * version 0.0.9
 	changed behaviour to show user's status. not user's friends timeline.
 	changed loading animation. before was used dialog interface. but it was un-usuable.
