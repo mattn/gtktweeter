@@ -48,7 +48,13 @@
 #  define snprintf _snprintf
 # endif
 # ifndef strncasecmp
-#  define strncasecmp(d,s,n) strncicmp(d,s,n)
+#  define strncasecmp(d,s,n) strnicmp(d,s,n)
+# endif
+# ifndef srandom
+#  define srandom(s) srand(s)
+# endif
+# ifndef random
+#  define random() rand()
 # endif
 #endif
 
@@ -526,7 +532,7 @@ static char*
 get_nonce_alloc() {
     char buf[256];
     char digest[256];
-    snprintf(buf, sizeof(buf), "%d %d", (int) time(NULL), (int)rand());
+    snprintf(buf, sizeof(buf), "%d %d", (int) time(NULL), (int) random());
     sha1(buf, strlen(buf), digest);
     return to_hex_alloc(digest);
 }
