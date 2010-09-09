@@ -47,11 +47,14 @@
 # ifndef snprintf
 #  define snprintf _snprintf
 # endif
+# ifndef strncasecmp
+#  define strncasecmp(d,s,n) strncicmp(d,s,n)
+# endif
 #endif
 
 #define APP_TITLE                  "GtkTweeter"
 #define APP_NAME                   "gtktweeter"
-#define APP_VERSION                "0.0.1"
+#define APP_VERSION                "0.1.0"
 #define SERVICE_UPDATE_URL         "https://api.twitter.com/1/statuses/update.xml"
 #define SERVICE_SELF_STATUS_URL    "https://api.twitter.com/1/statuses/friends_timeline.xml"
 #define SERVICE_USER_STATUS_URL    "https://api.twitter.com/1/statuses/user_timeline/%s.xml"
@@ -778,7 +781,7 @@ get_http_header_alloc(const char* ptr, const char* key) {
     while (*ptr) {
         tmp = strpbrk(ptr, "\r\n");
         if (!tmp) break;
-        if (!strnicmp(ptr, key, strlen(key)) && *(ptr + strlen(key)) == ':') {
+        if (!strncasecmp(ptr, key, strlen(key)) && *(ptr + strlen(key)) == ':') {
             size_t len;
             char* val;
             const char* top = ptr + strlen(key) + 1;
