@@ -594,7 +594,7 @@ get_request_token_alloc(
     char query[4096];
     char text[4096];
     char auth[21];
-    char tmstr[10];
+    char tmstr[12];
     char nonce[30] = {0};
     char error[CURL_ERROR_SIZE];
     char* ptr = NULL;
@@ -602,7 +602,7 @@ get_request_token_alloc(
     MEMFILE* mf; // mem file
     CURLcode res = CURLE_OK;
 
-    snprintf(tmstr, sizeof(tmstr), "%08d", (int) time(0));
+    snprintf(tmstr, sizeof(tmstr), "%10d", (int) time(0));
     ptr = get_nonce_alloc();
     strncpy(nonce, ptr, sizeof(nonce)-1);
     free(ptr);
@@ -671,7 +671,7 @@ get_access_token_alloc(
     char query[4096];
     char text[4096];
     char auth[21];
-    char tmstr[10];
+    char tmstr[12];
     char nonce[30] = {0};
     char error[CURL_ERROR_SIZE];
     char* ptr = NULL;
@@ -679,7 +679,7 @@ get_access_token_alloc(
     MEMFILE* mf; // mem file
     CURLcode res = CURLE_OK;
 
-    snprintf(tmstr, sizeof(tmstr), "%08d", (int) time(0));
+    snprintf(tmstr, sizeof(tmstr), "%10d", (int) time(0));
     ptr = get_nonce_alloc();
     strncpy(nonce, ptr, sizeof(nonce)-1);
     free(ptr);
@@ -1114,7 +1114,7 @@ update_friends_statuses_thread(gpointer data) {
     char query[4096];
     char text[4096];
     char auth[21];
-    char tmstr[10];
+    char tmstr[12];
     char nonce[30] = {0};
     char url[2048];
     char error[CURL_ERROR_SIZE];
@@ -1152,7 +1152,7 @@ update_friends_statuses_thread(gpointer data) {
     else
         strncpy(url, SERVICE_SELF_STATUS_URL, sizeof(url)-1);
 
-    snprintf(tmstr, sizeof(tmstr), "%08d", (int) time(0));
+    snprintf(tmstr, sizeof(tmstr), "%10d", (int) time(0));
     ptr = get_nonce_alloc();
     strncpy(nonce, ptr, sizeof(nonce)-1);
     free(ptr);
@@ -1484,7 +1484,7 @@ post_status_thread(gpointer data) {
     char key[4096];
     char query[4096];
     char text[4096];
-    char tmstr[10];
+    char tmstr[12];
     char nonce[30] = {0};
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
@@ -1498,7 +1498,7 @@ post_status_thread(gpointer data) {
 
     if (!status || strlen(status) == 0) return NULL;
 
-    snprintf(tmstr, sizeof(tmstr), "%08d", (int) time(0));
+    snprintf(tmstr, sizeof(tmstr), "%10d", (int) time(0));
     ptr = get_nonce_alloc();
     strncpy(nonce, ptr, sizeof(nonce)-1);
     free(ptr);
