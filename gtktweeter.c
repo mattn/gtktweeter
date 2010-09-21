@@ -466,13 +466,14 @@ static char* urlencode_alloc(const char* url) {
     char* ret = temp;
     for (i = 0; i < len; i++) {
         unsigned char c = (unsigned char)url[i];
-        if ((!(c & 0x80) && isalnum(c)) || c == '_' || c == '.' || c == '-')
+        //if ((!(c & 0x80) && isalnum(c)) || c == '_' || c == '.' || c == '-')
+        if (strchr("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.~-", c))
             *temp++ = c;
         else {
             char buf[3];
             snprintf(buf, sizeof(buf), "%02x", c);
             *temp++ = '%';
-            *temp++ = buf[0];
+            *temp++ = toupper(buf[0]);
             *temp++ = toupper(buf[1]);
         }
     }
