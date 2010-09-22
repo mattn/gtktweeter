@@ -1292,7 +1292,6 @@ update_friends_statuses_thread(gpointer data) {
 
     gdk_threads_enter();
     buffer = (GtkTextBuffer*)g_object_get_data(G_OBJECT(window), "buffer");
-    date_tag = (GtkTextTag*)g_object_get_data(G_OBJECT(buffer), "date_tag");
     gtk_text_buffer_set_text(buffer, "", 0);
     gtk_text_buffer_get_iter_at_mark(buffer, &iter, gtk_text_buffer_get_insert(buffer));
     gdk_threads_leave();
@@ -1378,6 +1377,7 @@ update_friends_statuses_thread(gpointer data) {
             gtk_text_buffer_insert_pixbuf(buffer, &iter, pixbuf);
         }
         gtk_text_buffer_insert(buffer, &iter, " ", -1);
+
         name_tag = gtk_text_buffer_create_tag(
                 buffer,
                 NULL,
@@ -1400,9 +1400,21 @@ update_friends_statuses_thread(gpointer data) {
         text = xml_decode_alloc(text);
         insert_status_text(buffer, &iter, text);
         gtk_text_buffer_insert(buffer, &iter, "\n", -1);
+
         //dt = strtotime(date);
+        date_tag = gtk_text_buffer_create_tag(
+                buffer,
+                NULL,
+                "scale",
+                PANGO_SCALE_X_SMALL,
+                "style",
+                PANGO_STYLE_ITALIC,
+                "foreground",
+                "#005500",
+                NULL);
         g_object_set_data(G_OBJECT(date_tag), "status_url", g_strdup_printf(SERVICE_STATUS_URL, user_name, id));
         gtk_text_buffer_insert_with_tags(buffer, &iter, date, -1, date_tag, NULL);
+
         free(text);
         gtk_text_buffer_insert(buffer, &iter, "\n\n", -1);
         gdk_threads_leave();
@@ -2158,7 +2170,6 @@ main(int argc, char* argv[]) {
     GtkWidget* loading_label = NULL;
 
     GtkTextBuffer* buffer = NULL;
-    GtkTextTag* date_tag = NULL;
 
     srandom(time(0));
 
@@ -2234,19 +2245,6 @@ main(int argc, char* argv[]) {
     buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textview));
     g_signal_connect(G_OBJECT(buffer), "delete-range", G_CALLBACK(buffer_delete_range), NULL);
     g_object_set_data(G_OBJECT(window), "buffer", buffer);
-
-    /* tags for string attributes */
-    date_tag = gtk_text_buffer_create_tag(
-            buffer,
-            "date_tag",
-            "scale",
-            PANGO_SCALE_X_SMALL,
-            "style",
-            PANGO_STYLE_ITALIC,
-            "foreground",
-            "#005500",
-            NULL);
-    g_object_set_data(G_OBJECT(buffer), "date_tag", date_tag);
 
     /* toolbox */
     toolbox = gtk_vbox_new(FALSE, 6);
