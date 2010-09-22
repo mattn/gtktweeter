@@ -1,2 +1,4 @@
 * add input dialog for consumer_key/consumer_secret.
 * add follow/remove/fav
+* translate create_at to human readable date time.
+* add reply botton on each statuses.
