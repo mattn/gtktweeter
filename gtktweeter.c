@@ -2251,10 +2251,10 @@ main(int argc, char* argv[]) {
             _("go home"),
             _("go home"));
 
-    /* reply button */
+    /* replies button */
     button = gtk_button_new();
     g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(update_replies_status), window);
-    image = gtk_image_new_from_pixbuf(gdk_pixbuf_new_from_file(DATA_DIR"/reply.png", NULL));
+    image = gtk_image_new_from_pixbuf(gdk_pixbuf_new_from_file(DATA_DIR"/replies.png", NULL));
     gtk_container_add(GTK_CONTAINER(button), image);
     gtk_box_pack_start(GTK_BOX(hbox), button, FALSE, TRUE, 0);
     gtk_tooltips_set_tip(
