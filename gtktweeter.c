@@ -66,6 +66,7 @@
 #define SERVICE_FRIENDS_STATUS_URL "https://api.twitter.com/1/statuses/friends_timeline.xml"
 #define SERVICE_USER_STATUS_URL    "https://api.twitter.com/1/statuses/user_timeline/%s.xml"
 #define SERVICE_THREAD_STATUS_URL  "https://api.twitter.com/1/statuses/thread_timeline/%s.xml"
+#define SERVICE_STATUS_URL         "http://twitter.com/%s/status/%s"
 #define SERVICE_AUTH_URL           "https://twitter.com/oauth/authorize"
 #define SERVICE_REQUEST_TOKEN_URL  "http://twitter.com/oauth/request_token"
 #define SERVICE_ACCESS_TOKEN_URL   "https://api.twitter.com/oauth/access_token"
@@ -78,7 +79,7 @@
 #define XML_CONTENT(x) (x->children ? (char*)x->children->content : NULL)
 
 typedef struct _PIXBUF_CACHE {
-    char* id;
+    char* user_id;
     GdkPixbuf* pixbuf;
 } PIXBUF_CACHE;
 
@@ -1304,9 +1305,10 @@ update_friends_statuses_thread(gpointer data) {
     /* make the friends timelines */
     for(n = 0; n < length; n++) {
         char* id = NULL;
+        char* user_id = NULL;
         char* icon = NULL;
         char* real = NULL;
-        char* name = NULL;
+        char* user_name = NULL;
         char* text = NULL;
         char* desc = NULL;
         char* date = NULL;
@@ -1319,6 +1321,7 @@ update_friends_statuses_thread(gpointer data) {
         if (status->type != XML_ATTRIBUTE_NODE && status->type != XML_ELEMENT_NODE && status->type != XML_CDATA_SECTION_NODE) continue;
         status = status->children;
         while(status) {
+            if (!strcmp("id", (char*)status->name)) id = (char*)status->children->content;
             if (!strcmp("created_at", (char*)status->name)) date = (char*)status->children->content;
             if (!strcmp("text", (char*)status->name)) {
                 if (status->children) text = (char*)status->children->content;
@@ -1327,9 +1330,9 @@ update_friends_statuses_thread(gpointer data) {
             if (!strcmp("user", (char*)status->name)) {
                 xmlNodePtr user = status->children;
                 while(user) {
-                    if (!strcmp("id", (char*)user->name)) id = XML_CONTENT(user);
+                    if (!strcmp("id", (char*)user->name)) user_id = XML_CONTENT(user);
                     if (!strcmp("name", (char*)user->name)) real = XML_CONTENT(user);
-                    if (!strcmp("screen_name", (char*)user->name)) name = XML_CONTENT(user);
+                    if (!strcmp("screen_name", (char*)user->name)) user_name = XML_CONTENT(user);
                     if (!strcmp("profile_image_url", (char*)user->name)) {
                         icon = XML_CONTENT(user);
                         icon = (char*)g_strchomp((gchar*)icon);
@@ -1346,8 +1349,8 @@ update_friends_statuses_thread(gpointer data) {
          * avoid to duplicate downloading of icon.
          */
         for(cache = 0; cache < length; cache++) {
-            if (!pixbuf_cache[cache].id) break;
-            if (!strcmp(pixbuf_cache[cache].id, id)) {
+            if (!pixbuf_cache[cache].user_id) break;
+            if (!strcmp(pixbuf_cache[cache].user_id, user_id)) {
                 pixbuf = pixbuf_cache[cache].pixbuf;
                 break;
             }
@@ -1355,7 +1358,7 @@ update_friends_statuses_thread(gpointer data) {
         if (!pixbuf) {
             pixbuf = url2pixbuf((char*)icon, NULL);
             if (pixbuf) {
-                pixbuf_cache[cache].id = id;
+                pixbuf_cache[cache].user_id = user_id;
                 pixbuf_cache[cache].pixbuf = pixbuf;
             }
         }
@@ -1387,10 +1390,10 @@ update_friends_statuses_thread(gpointer data) {
                 "foreground",
                 "#0000FF",
                 NULL);
-        g_object_set_data(G_OBJECT(name_tag), "user_id", g_strdup(id));
-        g_object_set_data(G_OBJECT(name_tag), "user_name", g_strdup(name));
+        g_object_set_data(G_OBJECT(name_tag), "user_id", g_strdup(user_id));
+        g_object_set_data(G_OBJECT(name_tag), "user_name", g_strdup(user_name));
         g_object_set_data(G_OBJECT(name_tag), "user_description", g_strdup(desc));
-        gtk_text_buffer_insert_with_tags(buffer, &iter, name, -1, name_tag, NULL);
+        gtk_text_buffer_insert_with_tags(buffer, &iter, user_name, -1, name_tag, NULL);
         gtk_text_buffer_insert(buffer, &iter, " (", -1);
         gtk_text_buffer_insert(buffer, &iter, real, -1);
         gtk_text_buffer_insert(buffer, &iter, ")\n", -1);
@@ -1398,6 +1401,7 @@ update_friends_statuses_thread(gpointer data) {
         insert_status_text(buffer, &iter, text);
         gtk_text_buffer_insert(buffer, &iter, "\n", -1);
         //dt = strtotime(date);
+        g_object_set_data(G_OBJECT(date_tag), "status_url", g_strdup_printf(SERVICE_STATUS_URL, user_name, id));
         gtk_text_buffer_insert_with_tags(buffer, &iter, date, -1, date_tag, NULL);
         free(text);
         gtk_text_buffer_insert(buffer, &iter, "\n\n", -1);
@@ -1855,6 +1859,11 @@ textview_change_cursor(GtkWidget* textview, gint x, gint y) {
                     hovering = TRUE;
                     break;
                 }
+                url = g_object_get_data(G_OBJECT(tag), "status_url");
+                if (url) {
+                    hovering = TRUE;
+                    break;
+                }
             }
         }
         g_slist_free(tags);
@@ -1926,6 +1935,12 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
                 user_name = g_object_get_data(G_OBJECT(tag), "user_name");
                 if (user_id || user_name) {
                     url = g_strdup_printf("@%s", user_name);
+                    break;
+                }
+
+                tag_data = g_object_get_data(G_OBJECT(tag), "status_url");
+                if (tag_data) {
+                    url = g_strdup(tag_data);
                     break;
                 }
             }
@@ -2029,6 +2044,10 @@ buffer_delete_range(GtkTextBuffer* buffer, GtkTextIter* start, GtkTextIter* end,
             tag_data = g_object_get_data(G_OBJECT(tag), "user_description");
             if (tag_data) g_free(tag_data);
             g_object_set_data(G_OBJECT(tag), "user_description", NULL);
+
+            tag_data = g_object_get_data(G_OBJECT(tag), "status_url");
+            if (tag_data) g_free(tag_data);
+            g_object_set_data(G_OBJECT(tag), "status_url", NULL);
         }
         g_slist_free(tags);
     }
