@@ -62,10 +62,13 @@
 #define APP_NAME                   "gtktweeter"
 #define APP_VERSION                "0.1.0"
 #define SERVICE_UPDATE_URL         "https://api.twitter.com/1/statuses/update.xml"
-#define SERVICE_SELF_STATUS_URL    "https://api.twitter.com/1/statuses/friends_timeline.xml"
+#define SERVICE_REPLIES_STATUS_URL "https://api.twitter.com/1/statuses/replies.xml"
+#define SERVICE_FRIENDS_STATUS_URL "https://api.twitter.com/1/statuses/friends_timeline.xml"
 #define SERVICE_USER_STATUS_URL    "https://api.twitter.com/1/statuses/user_timeline/%s.xml"
 #define SERVICE_THREAD_STATUS_URL  "https://api.twitter.com/1/statuses/thread_timeline/%s.xml"
 #define SERVICE_AUTH_URL           "https://twitter.com/oauth/authorize"
+#define SERVICE_REQUEST_TOKEN_URL  "http://twitter.com/oauth/request_token"
+#define SERVICE_ACCESS_TOKEN_URL   "https://api.twitter.com/oauth/access_token"
 #define USE_REPLAY_ACCESS          0
 #define ACCEPT_LETTER_URL          "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789;/?:@&=+$,-_.!~*'%"
 #define ACCEPT_LETTER_NAME         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
@@ -466,7 +469,6 @@ static char* urlencode_alloc(const char* url) {
     char* ret = temp;
     for (i = 0; i < len; i++) {
         unsigned char c = (unsigned char)url[i];
-        //if ((!(c & 0x80) && isalnum(c)) || c == '_' || c == '.' || c == '-')
         if (strchr("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.~-", c))
             *temp++ = c;
         else {
@@ -590,7 +592,6 @@ get_request_token_alloc(
         const char* consumer_key,
         const char* consumer_secret) {
 
-    const char* request_token_url = "http://twitter.com/oauth/request_token";
     char key[4096];
     char query[4096];
     char text[4096];
@@ -620,7 +621,7 @@ get_request_token_alloc(
             tmstr);
 
     strcpy(text, "POST&");
-    ptr = urlencode_alloc(request_token_url);
+    ptr = urlencode_alloc(SERVICE_REQUEST_TOKEN_URL);
     strcat(text, ptr);
     free(ptr);
     strcat(text, "&");
@@ -641,7 +642,7 @@ get_request_token_alloc(
     mf = memfopen();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
-    curl_easy_setopt(curl, CURLOPT_URL, request_token_url);
+    curl_easy_setopt(curl, CURLOPT_URL, SERVICE_REQUEST_TOKEN_URL);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
@@ -667,7 +668,6 @@ get_access_token_alloc(
         const char* request_token_secret,
         const char* verifier) {
 
-    const char* access_token_url = "https://api.twitter.com/oauth/access_token";
     char key[4096];
     char query[4096];
     char text[4096];
@@ -703,7 +703,7 @@ get_access_token_alloc(
             verifier);
 
     strcpy(text, "POST&");
-    ptr = urlencode_alloc(access_token_url);
+    ptr = urlencode_alloc(SERVICE_ACCESS_TOKEN_URL);
     strcat(text, ptr);
     free(ptr);
     strcat(text, "&");
@@ -724,7 +724,7 @@ get_access_token_alloc(
     mf = memfopen();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
-    curl_easy_setopt(curl, CURLOPT_URL, access_token_url);
+    curl_easy_setopt(curl, CURLOPT_URL, SERVICE_ACCESS_TOKEN_URL);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
@@ -1103,6 +1103,7 @@ update_friends_statuses_thread(gpointer data) {
     struct curl_slist *headers = NULL;
     long http_status = 0;
 
+    gchar* mode = NULL;
     gchar* user_id = NULL;
     gchar* user_name = NULL;
     gchar* status_id = NULL;
@@ -1137,20 +1138,25 @@ update_friends_statuses_thread(gpointer data) {
     PIXBUF_CACHE* pixbuf_cache = NULL;
 
     memset(url, 0, sizeof(url));
-    user_id = g_object_get_data(G_OBJECT(window), "user_id");
-    user_name = g_object_get_data(G_OBJECT(window), "user_name");
-    status_id = g_object_get_data(G_OBJECT(window), "status_id");
-    if (status_id) {
-        snprintf(url, sizeof(url), SERVICE_THREAD_STATUS_URL, status_id);
-        /* status_id is temporary value */
-        g_free(status_id);
-        g_object_set_data(G_OBJECT(window), "status_id", NULL);
+    mode = g_object_get_data(G_OBJECT(window), "mode");
+    if (mode && !strcmp(mode, "replies")) {
+        strncpy(url, SERVICE_REPLIES_STATUS_URL, sizeof(url)-1);
+    } else {
+        user_id = g_object_get_data(G_OBJECT(window), "user_id");
+        user_name = g_object_get_data(G_OBJECT(window), "user_name");
+        status_id = g_object_get_data(G_OBJECT(window), "status_id");
+        if (status_id) {
+            snprintf(url, sizeof(url), SERVICE_THREAD_STATUS_URL, status_id);
+            /* status_id is temporary value */
+            g_free(status_id);
+            g_object_set_data(G_OBJECT(window), "status_id", NULL);
+        }
+        else
+        if (user_id)
+            snprintf(url, sizeof(url), SERVICE_USER_STATUS_URL, user_id);
+        else
+            strncpy(url, SERVICE_FRIENDS_STATUS_URL, sizeof(url)-1);
     }
-    else
-    if (user_id)
-        snprintf(url, sizeof(url), SERVICE_USER_STATUS_URL, user_id);
-    else
-        strncpy(url, SERVICE_SELF_STATUS_URL, sizeof(url)-1);
 
     snprintf(tmstr, sizeof(tmstr), "%d", (int) time(0));
     ptr = get_nonce_alloc();
@@ -1270,6 +1276,9 @@ update_friends_statuses_thread(gpointer data) {
     }
     nodes = path->nodesetval;
 
+    if (mode && !strcmp(mode, "reply"))
+        title = g_strdup_printf("%s - Replies", APP_TITLE);
+    else
     if (user_name)
         title = g_strdup_printf("%s - %s", APP_TITLE, user_name);
     else
@@ -1453,15 +1462,37 @@ update_friends_statuses(GtkWidget* widget, gpointer user_data) {
 }
 
 static void
-update_self_status(GtkWidget* widget, gpointer user_data) {
+update_friends_status(GtkWidget* widget, gpointer user_data) {
     GtkWidget* window = (GtkWidget*)user_data;
     gchar* old_data;
 
+    old_data = g_object_get_data(G_OBJECT(window), "mode");
+    if (old_data) g_free(old_data);
     old_data = g_object_get_data(G_OBJECT(window), "user_id");
     if (old_data) g_free(old_data);
     old_data = g_object_get_data(G_OBJECT(window), "user_name");
     if (old_data) g_free(old_data);
 
+    g_object_set_data(G_OBJECT(window), "mode", NULL);
+    g_object_set_data(G_OBJECT(window), "user_id", NULL);
+    g_object_set_data(G_OBJECT(window), "user_name", NULL);
+
+    update_friends_statuses(NULL, window);
+}
+
+static void
+update_replies_status(GtkWidget* widget, gpointer user_data) {
+    GtkWidget* window = (GtkWidget*)user_data;
+    gchar* old_data;
+
+    old_data = g_object_get_data(G_OBJECT(window), "mode");
+    if (old_data) g_free(old_data);
+    old_data = g_object_get_data(G_OBJECT(window), "user_id");
+    if (old_data) g_free(old_data);
+    old_data = g_object_get_data(G_OBJECT(window), "user_name");
+    if (old_data) g_free(old_data);
+
+    g_object_set_data(G_OBJECT(window), "mode", g_strdup("replies"));
     g_object_set_data(G_OBJECT(window), "user_id", NULL);
     g_object_set_data(G_OBJECT(window), "user_name", NULL);
 
@@ -2210,7 +2241,7 @@ main(int argc, char* argv[]) {
 
     /* home button */
     button = gtk_button_new();
-    g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(update_self_status), window);
+    g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(update_friends_status), window);
     image = gtk_image_new_from_pixbuf(gdk_pixbuf_new_from_file(DATA_DIR"/home.png", NULL));
     gtk_container_add(GTK_CONTAINER(button), image);
     gtk_box_pack_start(GTK_BOX(hbox), button, FALSE, TRUE, 0);
@@ -2219,6 +2250,18 @@ main(int argc, char* argv[]) {
             button,
             _("go home"),
             _("go home"));
+
+    /* reply button */
+    button = gtk_button_new();
+    g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(update_replies_status), window);
+    image = gtk_image_new_from_pixbuf(gdk_pixbuf_new_from_file(DATA_DIR"/reply.png", NULL));
+    gtk_container_add(GTK_CONTAINER(button), image);
+    gtk_box_pack_start(GTK_BOX(hbox), button, FALSE, TRUE, 0);
+    gtk_tooltips_set_tip(
+            GTK_TOOLTIPS(tooltips),
+            button,
+            _("replies"),
+            _("replies"));
 
     /* reload button */
     button = gtk_button_new();
