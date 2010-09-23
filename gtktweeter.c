@@ -63,7 +63,7 @@
 #define APP_VERSION                "0.1.0"
 #define SERVICE_UPDATE_URL         "https://api.twitter.com/1/statuses/update.xml"
 #define SERVICE_REPLIES_STATUS_URL "https://api.twitter.com/1/statuses/replies.xml"
-#define SERVICE_FRIENDS_STATUS_URL "https://api.twitter.com/1/statuses/friends_timeline.xml"
+#define SERVICE_HOME_STATUS_URL    "https://api.twitter.com/1/statuses/home_timeline.xml"
 #define SERVICE_USER_STATUS_URL    "https://api.twitter.com/1/statuses/user_timeline/%s.xml"
 #define SERVICE_THREAD_STATUS_URL  "https://api.twitter.com/1/statuses/thread_timeline/%s.xml"
 #define SERVICE_STATUS_URL         "http://twitter.com/%s/status/%s"
@@ -1091,10 +1091,10 @@ insert_status_text(GtkTextBuffer* buffer, GtkTextIter* iter, const char* status)
 }
 
 /**
- * update friends statuses
+ * update home statuses
  */
 static gpointer
-update_friends_statuses_thread(gpointer data) {
+update_timeline_thread(gpointer data) {
     GtkWidget* window = (GtkWidget*)data;
     GtkTextBuffer* buffer = NULL;
     GtkTextTag* name_tag = NULL;
@@ -1156,7 +1156,7 @@ update_friends_statuses_thread(gpointer data) {
         if (user_id)
             snprintf(url, sizeof(url), SERVICE_USER_STATUS_URL, user_id);
         else
-            strncpy(url, SERVICE_FRIENDS_STATUS_URL, sizeof(url)-1);
+            strncpy(url, SERVICE_HOME_STATUS_URL, sizeof(url)-1);
     }
 
     snprintf(tmstr, sizeof(tmstr), "%d", (int) time(0));
@@ -1458,7 +1458,7 @@ update_friends_statuses(GtkWidget* widget, gpointer user_data) {
                 GTK_TEXT_VIEW(textview),
                 GTK_TEXT_WINDOW_TEXT),
             watch_cursor);
-    result = process_func(update_friends_statuses_thread, window, window, _("updating statuses..."));
+    result = process_func(update_timeline_thread, window, window, _("updating statuses..."));
     if (result) {
         /* show error message */
         error_dialog(window, result);
@@ -1653,7 +1653,7 @@ post_status(GtkWidget* widget, gpointer user_data) {
     result = process_func(post_status_thread, window, window, _("posting status..."));
     if (!result) {
         last_condition[0] = 0;
-        result = process_func(update_friends_statuses_thread, window, window, _("updating statuses..."));
+        result = process_func(update_timeline_thread, window, window, _("updating statuses..."));
     }
     if (result) {
         /* show error message */
