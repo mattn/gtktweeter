@@ -1097,8 +1097,6 @@ static gpointer
 update_timeline_thread(gpointer data) {
     GtkWidget* window = (GtkWidget*)data;
     GtkTextBuffer* buffer = NULL;
-    GtkTextTag* name_tag = NULL;
-    GtkTextTag* date_tag = NULL;
     CURL* curl = NULL;
     CURLcode res = CURLE_OK;
     struct curl_slist *headers = NULL;
@@ -1225,6 +1223,10 @@ update_timeline_thread(gpointer data) {
     body = memfstrdup(mbody);
     memfclose(mbody);
 
+    if (res != CURLE_OK) {
+        result_str = g_strdup(error);
+        goto leave;
+    }
     if (http_status == 304) {
         goto leave;
     }
@@ -1235,10 +1237,6 @@ update_timeline_thread(gpointer data) {
             result_str = g_strdup(_("unknown server response"));
         }
         goto leave;
-    }
-    if (res != CURLE_OK) {
-        result_str = g_strdup(error);
-        return NULL;
     }
 
     cond = get_http_header_alloc(head, "ETag");
@@ -1313,6 +1311,8 @@ update_timeline_thread(gpointer data) {
         char* date = NULL;
         GdkPixbuf* pixbuf = NULL;
         int cache;
+        GtkTextTag* name_tag = NULL;
+        GtkTextTag* date_tag = NULL;
         //time_t dt;
 
         /* status nodes */
@@ -1539,7 +1539,7 @@ post_status_thread(gpointer data) {
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
     MEMFILE* mbody;
-    char* body;
+    char* body = NULL;
 
     gdk_threads_enter();
     entry = (GtkWidget*)g_object_get_data(G_OBJECT(window), "entry");
@@ -1610,6 +1610,12 @@ post_status_thread(gpointer data) {
     curl_easy_cleanup(curl);
 
     body = memfstrdup(mbody);
+    memfclose(mbody);
+
+    if (res != CURLE_OK) {
+        result_str = g_strdup(error);
+        goto leave;
+    }
     if (http_status != 200) {
         if (body) {
             result_str = xml_decode_alloc(body);
