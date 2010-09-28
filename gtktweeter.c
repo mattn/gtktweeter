@@ -2674,6 +2674,21 @@ post_status(GtkWidget* widget, gpointer user_data) {
 }
 
 /**
+ * reload button
+ */
+static void
+on_reload_clicked(GtkWidget *widget, gpointer user_data) {
+    GtkWidget* window = gtk_widget_get_toplevel(widget);
+    gchar* mode = g_object_get_data(G_OBJECT(window), "mode");
+    last_condition[0] = 0;
+    if (mode && !strcmp(mode, "search")) {
+        search_timeline(window, NULL);
+    } else {
+        update_timeline(window, NULL);
+    }
+}
+
+/**
  * enter key handler
  */
 static gboolean
@@ -2931,7 +2946,7 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
                 tag_data = g_object_get_data(G_OBJECT(tag), "user_id");
                 if (tag_data) {
                     gchar* user_id = g_strdup(tag_data);
-                    gchar* user_name = g_object_get_data(G_OBJECT(tag), "user_name");
+                    gchar* user_name = g_strdup(g_object_get_data(G_OBJECT(tag), "user_name"));
                     clean_context(window);
                     g_object_set_data(G_OBJECT(window), "user_id", user_id);
                     g_object_set_data(G_OBJECT(window), "user_name", user_name);
@@ -3277,7 +3292,7 @@ main(int argc, char* argv[]) {
 
     /* reload button */
     button = gtk_button_new();
-    g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(update_timeline), window);
+    g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(on_reload_clicked), window);
     image = gtk_image_new_from_pixbuf(gdk_pixbuf_new_from_file(DATA_DIR"/reload.png", NULL));
     gtk_container_add(GTK_CONTAINER(button), image);
     gtk_box_pack_start(GTK_BOX(hbox), button, FALSE, TRUE, 0);
