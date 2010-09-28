@@ -615,13 +615,16 @@ reload_timer_func(gpointer data) {
 
 static void
 stop_reload_timer(GtkWidget* toplevel) {
-    if (reload_timer != 0) g_source_remove(reload_timer);
+    if (reload_timer != 0) {
+        g_source_remove(reload_timer);
+        reload_timer = 0;
+    }
 }
 
 static void
 start_reload_timer(GtkWidget* toplevel) {
     stop_reload_timer(toplevel);
-    reload_timer = g_timeout_add(RELOAD_TIMER_SPAN, (GSourceFunc)reload_timer_func, toplevel);
+    reload_timer = g_timeout_add_full(G_PRIORITY_LOW, RELOAD_TIMER_SPAN, (GSourceFunc)reload_timer_func, toplevel, NULL);
 }
 
 static void
