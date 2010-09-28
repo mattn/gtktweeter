@@ -3197,6 +3197,7 @@ main(int argc, char* argv[]) {
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(window), APP_TITLE);
     g_signal_connect(G_OBJECT(window), "delete-event", gtk_main_quit, window);
+    gtk_window_set_icon_from_file(GTK_WINDOW(window), DATA_DIR"/logo.png", NULL);
 
     /* link cursor */
     hand_cursor = gdk_cursor_new(GDK_HAND2);
