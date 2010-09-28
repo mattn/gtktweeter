@@ -2654,6 +2654,7 @@ post_status(GtkWidget* widget, gpointer user_data) {
     result = process_func(post_status_thread, window, window, _("posting status..."));
     if (!result) {
         last_condition[0] = 0;
+        clean_context(window);
         result = process_func(update_timeline_thread, window, window, _("updating statuses..."));
     }
     if (result) {
