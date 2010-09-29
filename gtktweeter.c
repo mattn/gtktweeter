@@ -2972,7 +2972,6 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
 
                 tag_data = g_object_get_data(G_OBJECT(tag), "favorite");
                 if (tag_data) {
-                    clean_context(window);
                     favorite_status(window, tag);
                     break;
                 }
