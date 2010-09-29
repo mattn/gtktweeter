@@ -24,10 +24,12 @@
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <gdk/gdkkeysyms.h>
 #include <glib/gconvert.h>
+#include <glib/gstdio.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 #include <ctype.h>
+#include <io.h>
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
@@ -721,6 +723,7 @@ static GdkPixbuf* url2pixbuf(const char* url, GError** error) {
         MEMFILE* mhead;
         char* head;
         char* body;
+        unsigned long size;
         CURLcode res = CURLE_FAILED_INIT;
 
         curl = curl_easy_init();
@@ -742,25 +745,41 @@ static GdkPixbuf* url2pixbuf(const char* url, GError** error) {
         head = memfstrdup(mhead);
         memfclose(mhead);
         body = memfstrdup(mbody);
+        size = mbody->size;
         memfclose(mbody);
 
         if (res == CURLE_OK) {
-            char* mime;
-            char* size;
-            mime = get_http_header_alloc(head, "Content-Type");
-            size = get_http_header_alloc(head, "Content-Length");
-            if (mime)
-                loader =
-                    (GdkPixbufLoader*)gdk_pixbuf_loader_new_with_mime_type(mime,
-                            error);
-            if (!loader) loader = gdk_pixbuf_loader_new();
-            if (body && gdk_pixbuf_loader_write(loader, (const guchar*) body,
-                        atol(size ? size : "0"), &_error)) {
-                pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+            char* ctype;
+            char* csize;
+            ctype = get_http_header_alloc(head, "Content-Type");
+            csize = get_http_header_alloc(head, "Content-Length");
+
+#ifdef _WIN32
+            if (ctype && !strcmp(ctype, "image/jpeg")) {
+                gchar* fn = NULL;
+                gint f = g_file_open_tmp(NULL, &fn, NULL);
+                write(f, body, size);
+                close(f);
+                pixbuf = gdk_pixbuf_new_from_file(fn, NULL);
+                g_unlink(fn);
+            } else
+#endif
+            {
+                if (ctype)
+                    loader =
+                        (GdkPixbufLoader*)gdk_pixbuf_loader_new_with_mime_type(ctype,
+                                error);
+                if (csize)
+                    size = atol(csize);
+                if (!loader) loader = gdk_pixbuf_loader_new();
+                if (body && gdk_pixbuf_loader_write(loader, (const guchar*) body,
+                            size, &_error)) {
+                    pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+                }
             }
-            if (mime) free(mime);
-            if (size) free(size);
-            gdk_pixbuf_loader_close(loader, NULL);
+            if (ctype) free(ctype);
+            if (csize) free(csize);
+            if (loader) gdk_pixbuf_loader_close(loader, NULL);
         } else {
             _error = g_error_new_literal(G_FILE_ERROR, res,
                     curl_easy_strerror(res));
@@ -984,6 +1003,7 @@ process_func(
             &info,
             TRUE,
             &error);
+    if (error) g_error_free(error);
     while(info.processing) {
         gdk_threads_enter();
         gtk_main_iteration_do(TRUE);
@@ -1103,7 +1123,6 @@ insert_status_text(GtkTextBuffer* buffer, GtkTextIter* iter, const char* status)
             int len;
             char* link;
             char* tmp;
-            gchar* tag_name;
 
             if (last != ptr)
                 gtk_text_buffer_insert(buffer, iter, last, ptr-last);
@@ -1139,14 +1158,9 @@ static time_t
 atomtime_to_time(struct tm* tm, char *s) {
     char *os;
     int i;
-    int isleap;
     struct tm tmptm;
     time_t tmptime;
 
-    static int mday[2][12] = {
-        31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
-        31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
-    };
     static char* wday[] = {
         "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
         NULL
@@ -1217,14 +1231,9 @@ static time_t
 tweettime_to_time(struct tm* tm, char *s) {
     char *os;
     int i;
-    int isleap;
     struct tm tmptm;
     time_t tmptime;
 
-    static int mday[2][12] = {
-        31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
-        31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
-    };
     static char* wday[] = {
         "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
         NULL
@@ -1336,33 +1345,21 @@ search_timeline_thread(gpointer data) {
     long http_status = 0;
 
     gchar* search = NULL;
-    gchar* mode = NULL;
     gchar* max_id = NULL;
     gchar* page = NULL;
-    gchar* user_id = NULL;
-    gchar* user_name = NULL;
-    gchar* status_id = NULL;
     gchar* title = NULL;
 
     char* ptr = NULL;
-    char* tmp;
-    char key[4096];
-    char query[4096];
-    char text[4096];
-    char auth[21];
-    char tmstr[15];
-    char nonce[30] = {0};
     char url[2048];
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
-    MEMFILE* mhead;
-    MEMFILE* mbody;
-    char* body;
-    char* head;
+    MEMFILE* mhead = NULL;
+    MEMFILE* mbody = NULL;
+    char* body = NULL;
+    char* head = NULL;
     int n;
     int length;
     char* cond;
-    char* last_id = NULL;
 
     xmlDocPtr doc = NULL;
     xmlNodeSetPtr nodes = NULL;
@@ -1734,7 +1731,6 @@ update_timeline_thread(gpointer data) {
     struct curl_slist *headers = NULL;
     long http_status = 0;
 
-    gchar* search = NULL;
     gchar* mode = NULL;
     gchar* max_id = NULL;
     gchar* page = NULL;
@@ -1761,7 +1757,6 @@ update_timeline_thread(gpointer data) {
     int n;
     int length;
     char* cond;
-    char* last_id = NULL;
 
     xmlDocPtr doc = NULL;
     xmlNodeSetPtr nodes = NULL;
@@ -2936,7 +2931,6 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
         for(n = 0; n < len; n++) {
             GtkTextTag* tag = (GtkTextTag*)g_slist_nth_data(tags, n);
             if (tag) {
-                gchar* user_name = NULL;
                 gpointer tag_data;
                 tag_data = g_object_get_data(G_OBJECT(tag), "url");
                 if (tag_data) {
@@ -3049,7 +3043,6 @@ buffer_delete_range(GtkTextBuffer* buffer, GtkTextIter* start, GtkTextIter* end,
     };
     while(iter) {
         GSList* tags = NULL;
-        GtkTextTag* tag;
         int len, n;
         if (!gtk_text_iter_backward_char(iter)) break;
         if (!gtk_text_iter_in_range(iter, start, end)) break;
@@ -3174,7 +3167,6 @@ main(int argc, char* argv[]) {
     GtkTooltips* tooltips = NULL;
     GtkWidget* loading_image = NULL;
     GtkWidget* loading_label = NULL;
-    GtkWidget* hscroll = NULL;
     GtkAdjustment* vadjust = NULL;
 
     GtkTextBuffer* buffer = NULL;
