@@ -482,7 +482,7 @@ static char* urlencode_alloc(const char* url) {
         if (strchr("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.~-", c))
             *temp++ = c;
         else {
-            char buf[3];
+            char buf[3] = {0};
             snprintf(buf, sizeof(buf), "%02x", c);
             *temp++ = '%';
             *temp++ = toupper(buf[0]);
@@ -503,9 +503,9 @@ static unsigned char* hmac(
 {
     int i;
     sha1_context ctx;
-    unsigned char ipad[65];
-    unsigned char opad[65];
-    unsigned char inner[21];
+    unsigned char ipad[65] = {0};
+    unsigned char opad[65] = {0};
+    unsigned char inner[21] = {0};
 
     memset(ipad, 0, sizeof(ipad));
     memset(opad, 0, sizeof(opad));
@@ -543,8 +543,8 @@ static unsigned char* hmac(
 
 static char*
 get_nonce_alloc() {
-    char buf[64];
-    char digest[256];
+    char buf[64] = {0};
+    char digest[256] = {0};
     snprintf(buf, sizeof(buf), "%d %d", (int) time(NULL), (int) random());
     sha1(buf, strlen(buf), digest);
     return to_hex_alloc(digest);
