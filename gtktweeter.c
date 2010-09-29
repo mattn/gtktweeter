@@ -2994,6 +2994,7 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
                     gtk_entry_set_text(GTK_ENTRY(entry), text);
                     g_free(text);
                     gtk_widget_grab_focus(entry);
+                    gtk_editable_set_position(GTK_EDITABLE(entry), -1);
                     break;
                 }
 
@@ -3343,6 +3344,7 @@ main(int argc, char* argv[]) {
             entry,
             _("what are you doing?"),
             _("what are you doing?"));
+    g_object_set(gtk_widget_get_settings(entry), "gtk-entry-select-on-focus", FALSE, NULL);
 
     /* post button */
     button = gtk_button_new();
