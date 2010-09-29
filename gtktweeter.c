@@ -29,7 +29,7 @@
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 #include <ctype.h>
-#include <io.h>
+#include <sys/io.h>
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
@@ -67,6 +67,7 @@
 #define SERVICE_UPDATE_URL         "https://api.twitter.com/1/statuses/update.xml"
 #define SERVICE_RETWEET_URL        "https://api.twitter.com/1/statuses/retweet/%s.xml"
 #define SERVICE_FAVORITE_URL       "https://api.twitter.com/1/favorites/create/%s.xml"
+#define SERVICE_UNFAVORITE_URL     "https://api.twitter.com/1/favorites/destroy/%s.xml"
 #define SERVICE_REPLIES_STATUS_URL "https://api.twitter.com/1/statuses/mentions.xml"
 #define SERVICE_SEARCH_STATUS_URL  "http://search.twitter.com/search.rss"
 #define SERVICE_HOME_STATUS_URL    "https://api.twitter.com/1/statuses/home_timeline.xml"
@@ -1468,6 +1469,7 @@ search_timeline_thread(gpointer data) {
         char* text = NULL;
         char* date = NULL;
         int favorited = 0;
+        int retweeted = 0;
         GdkPixbuf* pixbuf = NULL;
         GtkTextTag* tag = NULL;
         struct tm localtm;
@@ -1596,21 +1598,6 @@ search_timeline_thread(gpointer data) {
                 "foreground",
                 "#000055",
                 NULL);
-        g_object_set_data(G_OBJECT(tag), "retweet", g_strdup(id));
-        gtk_text_buffer_insert_with_tags(buffer, &iter, "retweet", -1, tag, NULL);
-
-        gtk_text_buffer_insert(buffer, &iter, " ", -1);
-
-        tag = gtk_text_buffer_create_tag(
-                buffer,
-                NULL,
-                "scale",
-                PANGO_SCALE_X_SMALL,
-                "style",
-                PANGO_STYLE_ITALIC,
-                "foreground",
-                "#000055",
-                NULL);
         g_object_set_data(G_OBJECT(tag), "reply", g_strdup(user_name));
         g_object_set_data(G_OBJECT(tag), "in_reply_to_status_id", g_strdup(id));
         gtk_text_buffer_insert_with_tags(buffer, &iter, "reply", -1, tag, NULL);
@@ -1625,9 +1612,24 @@ search_timeline_thread(gpointer data) {
                 "style",
                 PANGO_STYLE_ITALIC,
                 "foreground",
+                retweeted ? "#555555" : "#000055",
+                NULL);
+        g_object_set_data(G_OBJECT(tag), "retweet", g_strdup_printf((retweeted ? "-%s" : "%s"), id));
+        gtk_text_buffer_insert_with_tags(buffer, &iter, "retweet", -1, tag, NULL);
+
+        gtk_text_buffer_insert(buffer, &iter, " ", -1);
+
+        tag = gtk_text_buffer_create_tag(
+                buffer,
+                NULL,
+                "scale",
+                PANGO_SCALE_X_SMALL,
+                "style",
+                PANGO_STYLE_ITALIC,
+                "foreground",
                 favorited ? "#555555" : "#000055",
                 NULL);
-        g_object_set_data(G_OBJECT(tag), "favorite", g_strdup(id));
+        g_object_set_data(G_OBJECT(tag), "favorite", g_strdup_printf((favorited ? "-%s" : "%s"), id));
         gtk_text_buffer_insert_with_tags(buffer, &iter, "favorite", -1, tag, NULL);
 
         free(text);
@@ -1795,6 +1797,10 @@ update_timeline_thread(gpointer data) {
         }
     }
 
+    ptr = g_strdup_printf("include_rts=true&%s", query);
+    g_free(query);
+    query = ptr;
+
     purl = urlencode_alloc(url);
     ptr = urlencode_alloc(query);
     tmp = g_strdup_printf("GET&%s&%s", purl, ptr);
@@ -1935,6 +1941,7 @@ update_timeline_thread(gpointer data) {
         char* text = NULL;
         char* date = NULL;
         int favorited = 0;
+        int retweeted = 0;
         GdkPixbuf* pixbuf = NULL;
         GtkTextTag* tag = NULL;
         struct tm localtm;
@@ -2049,21 +2056,7 @@ update_timeline_thread(gpointer data) {
         g_object_set_data(G_OBJECT(tag), "status_url", g_strdup_printf(SERVICE_STATUS_URL, user_name, id));
         gtk_text_buffer_insert_with_tags(buffer, &iter, localdate, -1, tag, NULL);
 
-        gtk_text_buffer_insert(buffer, &iter, " ", -1);
-
-        tag = gtk_text_buffer_create_tag(
-                buffer,
-                NULL,
-                "scale",
-                PANGO_SCALE_X_SMALL,
-                "style",
-                PANGO_STYLE_ITALIC,
-                "foreground",
-                "#000055",
-                NULL);
-        g_object_set_data(G_OBJECT(tag), "retweet", g_strdup(id));
-        gtk_text_buffer_insert_with_tags(buffer, &iter, "retweet", -1, tag, NULL);
-
+        // reply
         gtk_text_buffer_insert(buffer, &iter, " ", -1);
 
         tag = gtk_text_buffer_create_tag(
@@ -2080,6 +2073,23 @@ update_timeline_thread(gpointer data) {
         g_object_set_data(G_OBJECT(tag), "in_reply_to_status_id", g_strdup(id));
         gtk_text_buffer_insert_with_tags(buffer, &iter, "reply", -1, tag, NULL);
 
+        // retweet
+        gtk_text_buffer_insert(buffer, &iter, " ", -1);
+
+        tag = gtk_text_buffer_create_tag(
+                buffer,
+                NULL,
+                "scale",
+                PANGO_SCALE_X_SMALL,
+                "style",
+                PANGO_STYLE_ITALIC,
+                "foreground",
+                retweeted ? "#555555" : "#000055",
+                NULL);
+        g_object_set_data(G_OBJECT(tag), "retweet", g_strdup_printf((retweeted ? "-%s" : "%s"), id));
+        gtk_text_buffer_insert_with_tags(buffer, &iter, "retweet", -1, tag, NULL);
+
+        // favorite
         gtk_text_buffer_insert(buffer, &iter, " ", -1);
 
         tag = gtk_text_buffer_create_tag(
@@ -2092,7 +2102,7 @@ update_timeline_thread(gpointer data) {
                 "foreground",
                 favorited ? "#555555" : "#000055",
                 NULL);
-        g_object_set_data(G_OBJECT(tag), "favorite", g_strdup(id));
+        g_object_set_data(G_OBJECT(tag), "favorite", g_strdup_printf((favorited ? "-%s" : "%s"), id));
         gtk_text_buffer_insert_with_tags(buffer, &iter, "favorite", -1, tag, NULL);
 
         free(text);
@@ -2285,7 +2295,8 @@ leave:
 }
 
 static void
-retweet_status(GtkWidget* widget, const gchar* status_id) {
+retweet_status(GtkWidget* widget, GtkTextTag* tag) {
+    gchar* status_id;
     gpointer result;
     GtkWidget* window = (GtkWidget*) gtk_widget_get_toplevel(widget);
     GtkWidget* textview = (GtkWidget*) g_object_get_data(G_OBJECT(window), "textview");
@@ -2301,10 +2312,22 @@ retweet_status(GtkWidget* widget, const gchar* status_id) {
                 GTK_TEXT_VIEW(textview),
                 GTK_TEXT_WINDOW_TEXT),
             watch_cursor);
+    status_id = g_object_get_data(G_OBJECT(tag), "retweet");
     g_object_set_data(G_OBJECT(window), "retweet", (gchar*) status_id);
     result = process_func(retweet_status_thread, window, window, _("retweeting status..."));
     g_object_set_data(G_OBJECT(window), "retweet", NULL);
     if (!result) {
+        GValue gval = {0};
+        int retweeted = (*status_id != '-');
+        g_value_init(&gval, G_TYPE_STRING);
+        g_value_set_string(&gval, retweeted ? "#555555" : "#000055");
+        g_object_set_property(G_OBJECT(tag), "foreground", &gval);
+        if (retweeted)
+            g_object_set_data(G_OBJECT(tag), "retweet", g_strdup_printf("-%s", status_id));
+        else
+            g_object_set_data(G_OBJECT(tag), "retweet", g_strdup(status_id+1));
+        g_free(status_id);
+
         if (last_condition) g_free(last_condition);
         last_condition = NULL;
     }
@@ -2356,7 +2379,11 @@ favorite_status_thread(gpointer data) {
     gdk_threads_leave();
 
     if (!status_id || strlen(status_id) == 0) return NULL;
-    url = g_strdup_printf(SERVICE_FAVORITE_URL, status_id);
+    if (*status_id == '-') {
+        url = g_strdup_printf(SERVICE_UNFAVORITE_URL, status_id+1);
+    } else {
+        url = g_strdup_printf(SERVICE_FAVORITE_URL, status_id);
+    }
 
     nonce = get_nonce_alloc();
     query = g_strdup_printf(
@@ -2451,9 +2478,18 @@ favorite_status(GtkWidget* widget, GtkTextTag* tag) {
     g_object_set_data(G_OBJECT(window), "favorite", NULL);
     if (!result) {
         GValue gval = {0};
+        int favorited = (*status_id != '-');
         g_value_init(&gval, G_TYPE_STRING);
-        g_value_set_string (&gval, "#555555");
+        g_value_set_string(&gval, favorited ? "#555555" : "#000055");
         g_object_set_property(G_OBJECT(tag), "foreground", &gval);
+        if (favorited)
+            g_object_set_data(G_OBJECT(tag), "favorite", g_strdup_printf("-%s", status_id));
+        else
+            g_object_set_data(G_OBJECT(tag), "favorite", g_strdup(status_id+1));
+        g_free(status_id);
+
+        if (last_condition) g_free(last_condition);
+        last_condition = NULL;
     }
     if (result) {
         /* show error message */
@@ -2930,7 +2966,7 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
                 tag_data = g_object_get_data(G_OBJECT(tag), "retweet");
                 if (tag_data) {
                     clean_context(window);
-                    retweet_status(window, (gchar*) tag_data);
+                    retweet_status(window, tag);
                     break;
                 }
 
