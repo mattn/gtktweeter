@@ -82,7 +82,7 @@
 #define ACCEPT_LETTER_REPLY        "1234567890"
 #define RELOAD_TIMER_SPAN          (60*1000)
 
-#define XML_CONTENT(x) (x->children ? (char*)x->children->content : NULL)
+#define XML_CONTENT(x) (x->children ? (char*) x->children->content : NULL)
 
 typedef struct _PIXBUF_CACHE {
     char* user_id;
@@ -106,7 +106,7 @@ typedef struct _APPLICATION_INFO {
 static GdkCursor* hand_cursor = NULL;
 static GdkCursor* regular_cursor = NULL;
 static GdkCursor* watch_cursor = NULL;
-static char last_condition[256] = {0};
+static char* last_condition = NULL;
 static int is_processing = FALSE;
 static guint reload_timer = 0;
 static APPLICATION_INFO application_info = {0};
@@ -148,7 +148,7 @@ typedef struct
 }
 
 static void sha1_starts(
-        sha1_context *ctx)
+        sha1_context* ctx)
 {
     ctx->total[0] = 0;
     ctx->total[1] = 0;
@@ -161,7 +161,7 @@ static void sha1_starts(
 }
 
 static void sha1_process(
-        sha1_context *ctx, const unsigned char data[64])
+        sha1_context* ctx, const unsigned char data[64])
 {
     unsigned long int temp, W[16], A, B, C, D, E;
 
@@ -318,7 +318,7 @@ static void sha1_process(
 }
 
 static void sha1_update(
-        sha1_context *ctx,
+        sha1_context* ctx,
         const unsigned char* input,
         unsigned long int length)
 {
@@ -337,7 +337,7 @@ static void sha1_update(
         ctx->total[1]++;
 
     if (left && length >= fill) {
-        memcpy((void*)(ctx->buffer + left), (void*)input, fill);
+        memcpy((void*)(ctx->buffer + left), (void*) input, fill);
         sha1_process(ctx, ctx->buffer);
         length -= fill;
         input  += fill;
@@ -351,7 +351,7 @@ static void sha1_update(
     }
 
     if (length)
-        memcpy((void*)(ctx->buffer + left), (void *)input, length );
+        memcpy((void*)(ctx->buffer + left), (void *) input, length );
 }
 
 static unsigned char sha1_padding[64] =
@@ -363,7 +363,7 @@ static unsigned char sha1_padding[64] =
 };
 
 static void sha1_finish(
-        sha1_context *ctx,
+        sha1_context* ctx,
         unsigned char digest[20])
 {
     unsigned long int last, padn;
@@ -409,8 +409,8 @@ static char* to_hex_alloc(const char* input)
     unsigned long int i, j, len = strlen(input);
     char* temp = (char*) calloc(len * 2 + 1, sizeof(char));
     for (i = j = 0; i < len; i++) {
-        temp[j++] = hex_table[((unsigned char)input[i] & 0xF0) >> 4];
-        temp[j++] = hex_table[(unsigned char)input[i]& 0x0F];
+        temp[j++] = hex_table[((unsigned char) input[i] & 0xF0) >> 4];
+        temp[j++] = hex_table[(unsigned char) input[i]& 0x0F];
     }
     return temp;
 }
@@ -420,9 +420,9 @@ static const char* base64chars =
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789+/";
 #define is_base64(c) ( \
-        isalnum((unsigned char)c) || \
-        ((unsigned char)c == '+') || \
-        ((unsigned char)c == '/'))
+        isalnum((unsigned char) c) || \
+        ((unsigned char) c == '+') || \
+        ((unsigned char) c == '/'))
 
 static char* base64encode_alloc(
         const char* input,
@@ -476,7 +476,7 @@ static char* urlencode_alloc(const char* url) {
     char* temp = (char*) calloc(len * 3 + 1, sizeof(char));
     char* ret = temp;
     for (i = 0; i < len; i++) {
-        unsigned char c = (unsigned char)url[i];
+        unsigned char c = (unsigned char) url[i];
         if (strchr("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.~-", c))
             *temp++ = c;
         else {
@@ -541,7 +541,7 @@ static unsigned char* hmac(
 
 static char*
 get_nonce_alloc() {
-    char buf[256];
+    char buf[64];
     char digest[256];
     snprintf(buf, sizeof(buf), "%d %d", (int) time(NULL), (int) random());
     sha1(buf, strlen(buf), digest);
@@ -599,7 +599,7 @@ memfstrdup(MEMFILE* mf) {
  */
 static guint
 reload_timer_func(gpointer data) {
-    GtkWidget* window = (GtkWidget*)data;
+    GtkWidget* window = (GtkWidget*) data;
     gchar* old_data;
 
     old_data = g_object_get_data(G_OBJECT(window), "last_status_id");
@@ -626,7 +626,7 @@ stop_reload_timer(GtkWidget* toplevel) {
 static void
 start_reload_timer(GtkWidget* toplevel) {
     stop_reload_timer(toplevel);
-    reload_timer = g_timeout_add_full(G_PRIORITY_LOW, RELOAD_TIMER_SPAN, (GSourceFunc)reload_timer_func, toplevel, NULL);
+    reload_timer = g_timeout_add_full(G_PRIORITY_LOW, RELOAD_TIMER_SPAN, (GSourceFunc) reload_timer_func, toplevel, NULL);
 }
 
 static void
@@ -647,34 +647,34 @@ static char* xml_decode_alloc(const char* str) {
     len = strlen(str)*3;
     buf = malloc(len+1);
     memset(buf, 0, len+1);
-    pbuf = (unsigned char*)buf;
+    pbuf = (unsigned char*) buf;
     while(*str) {
         if (*str == '<') {
             char* ptr = strchr(str, '>');
             if (ptr) str = ptr + 1;
         } else
         if (!memcmp(str, "&amp;", 5)) {
-            strcat((char*)pbuf++, "&");
+            strcat((char*) pbuf++, "&");
             str += 5;
         } else
         if (!memcmp(str, "&nbsp;", 6)) {
-            strcat((char*)pbuf++, " ");
+            strcat((char*) pbuf++, " ");
             str += 6;
         } else
         if (!memcmp(str, "&quot;", 6)) {
-            strcat((char*)pbuf++, "\"");
+            strcat((char*) pbuf++, "\"");
             str += 6;
         } else
         if (!memcmp(str, "&nbsp;", 6)) {
-            strcat((char*)pbuf++, " ");
+            strcat((char*) pbuf++, " ");
             str += 6;
         } else
         if (!memcmp(str, "&lt;", 4)) {
-            strcat((char*)pbuf++, "<");
+            strcat((char*) pbuf++, "<");
             str += 4;
         } else
         if (!memcmp(str, "&gt;", 4)) {
-            strcat((char*)pbuf++, ">");
+            strcat((char*) pbuf++, ">");
             str += 4;
         } else
             *pbuf++ = *str++;
@@ -755,7 +755,8 @@ static GdkPixbuf* url2pixbuf(const char* url, GError** error) {
             csize = get_http_header_alloc(head, "Content-Length");
 
 #ifdef _WIN32
-            if (ctype && !strcmp(ctype, "image/jpeg")) {
+            if (ctype &&
+                    (!strcmp(ctype, "image/jpeg") || !strcmp(ctype, "image/gif"))) {
                 gchar* fn = NULL;
                 gint f = g_file_open_tmp(NULL, &fn, NULL);
                 write(f, body, size);
@@ -767,7 +768,7 @@ static GdkPixbuf* url2pixbuf(const char* url, GError** error) {
             {
                 if (ctype)
                     loader =
-                        (GdkPixbufLoader*)gdk_pixbuf_loader_new_with_mime_type(ctype,
+                        (GdkPixbufLoader*) gdk_pixbuf_loader_new_with_mime_type(ctype,
                                 error);
                 if (csize)
                     size = atol(csize);
@@ -803,52 +804,47 @@ get_request_token_alloc(
         const char* consumer_key,
         const char* consumer_secret) {
 
-    char key[4096];
-    char query[4096];
-    char text[4096];
-    char auth[21];
-    char tmstr[15];
-    char nonce[30] = {0};
-    char error[CURL_ERROR_SIZE];
+    char* key = NULL;
+    char* query = NULL;
+    char* nonce;
     char* ptr = NULL;
-    char* tmp;
+    char* tmp = NULL;
+    char* purl = NULL;
+    char auth[21];
+    char error[CURL_ERROR_SIZE] = {0};
     MEMFILE* mf; // mem file
     CURLcode res = CURLE_OK;
 
-    snprintf(tmstr, sizeof(tmstr), "%d", (int) time(0));
-    ptr = get_nonce_alloc();
-    strncpy(nonce, ptr, sizeof(nonce)-1);
-    free(ptr);
-
-    snprintf(query, sizeof(query),
+    nonce = get_nonce_alloc();
+    query = g_strdup_printf(
         "oauth_consumer_key=%s"
         "&oauth_nonce=%s"
         "&oauth_request_method=POST"
         "&oauth_signature_method=HMAC-SHA1"
-        "&oauth_timestamp=%s"
+        "&oauth_timestamp=%d"
         "&oauth_version=1.0",
             consumer_key,
             nonce,
-            tmstr);
+            (int) time(0));
+    free(nonce);
 
-    strcpy(text, "POST&");
-    ptr = urlencode_alloc(SERVICE_REQUEST_TOKEN_URL);
-    strcat(text, ptr);
-    free(ptr);
-    strcat(text, "&");
+    purl = urlencode_alloc(SERVICE_REQUEST_TOKEN_URL);
     ptr = urlencode_alloc(query);
-    strcat(text, ptr);
+    tmp = g_strdup_printf("POST&%s&%s", purl, ptr);
+    free(purl);
     free(ptr);
-
-    snprintf(key, sizeof(key), "%s&", consumer_secret);
-    hmac((unsigned char*)key, strlen(key),
-            (unsigned char*)text, strlen(text), (unsigned char*) auth);
-    strcat(query, "&oauth_signature=");
+    key = g_strdup_printf("%s&", consumer_secret);
+    hmac((unsigned char*) key, strlen(key),
+            (unsigned char*) tmp, strlen(tmp), (unsigned char*) auth);
+    g_free(key);
+    g_free(tmp);
     tmp = base64encode_alloc(auth, 20);
     ptr = urlencode_alloc(tmp);
-    strcat(query, ptr);
     free(tmp);
+    tmp = g_strdup_printf("%s&oauth_signature=%s", query, ptr);
     free(ptr);
+    g_free(query);
+    query = tmp;
 
     mf = memfopen();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
@@ -862,10 +858,11 @@ get_request_token_alloc(
     res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         fputs(error, stderr);
-        memfclose(mf);
-        return NULL;
+        ptr = NULL;
+    } else {
+        ptr = memfstrdup(mf);
     }
-    ptr = memfstrdup(mf);
+    g_free(query);
     memfclose(mf);
     return ptr;
 }
@@ -879,58 +876,52 @@ get_access_token_alloc(
         const char* request_token_secret,
         const char* verifier) {
 
-    char key[4096];
-    char query[4096];
-    char text[4096];
-    char auth[21];
-    char tmstr[15];
-    char nonce[30] = {0};
-    char error[CURL_ERROR_SIZE];
+    char* key;
+    char* query;
+    char* nonce;
     char* ptr = NULL;
     char* tmp;
+    char* purl;
+    char auth[21];
+    char error[CURL_ERROR_SIZE];
     MEMFILE* mf; // mem file
     CURLcode res = CURLE_OK;
 
-    snprintf(tmstr, sizeof(tmstr), "%d", (int) time(0));
-    ptr = get_nonce_alloc();
-    strncpy(nonce, ptr, sizeof(nonce)-1);
-    free(ptr);
-
-    snprintf(query, sizeof(query),
+    nonce = get_nonce_alloc();
+    query = g_strdup_printf(
         "oauth_consumer_key=%s"
         "&oauth_nonce=%s"
         "&oauth_request_method=POST"
         "&oauth_signature_method=HMAC-SHA1"
-        "&oauth_timestamp=%s"
+        "&oauth_timestamp=%d"
         "&oauth_token=%s"
         "&oauth_token_secret=%s"
         "&oauth_verifier=%s"
         "&oauth_version=1.0",
             consumer_key,
             nonce,
-            tmstr,
+            (int) time(0),
             request_token,
             request_token_secret,
             verifier);
+    free(nonce);
 
-    strcpy(text, "POST&");
-    ptr = urlencode_alloc(SERVICE_ACCESS_TOKEN_URL);
-    strcat(text, ptr);
-    free(ptr);
-    strcat(text, "&");
+    purl = urlencode_alloc(SERVICE_ACCESS_TOKEN_URL);
     ptr = urlencode_alloc(query);
-    strcat(text, ptr);
+    tmp = g_strdup_printf("POST&%s&%s", purl, ptr);
+    free(purl);
     free(ptr);
-
-    snprintf(key, sizeof(key), "%s&", consumer_secret);
-    hmac((unsigned char*)key, strlen(key),
-            (unsigned char*)text, strlen(text), (unsigned char*) auth);
-    strcat(query, "&oauth_signature=");
+    key = g_strdup_printf("%s&", consumer_secret);
+    hmac((unsigned char*) key, strlen(key),
+            (unsigned char*) tmp, strlen(tmp), (unsigned char*) auth);
+    g_free(key);
+    g_free(tmp);
     tmp = base64encode_alloc(auth, 20);
     ptr = urlencode_alloc(tmp);
-    strcat(query, ptr);
-    free(tmp);
+    tmp = g_strdup_printf("%s&oauth_signature=%s", query, ptr);
     free(ptr);
+    g_free(query);
+    query = tmp;
 
     mf = memfopen();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
@@ -944,10 +935,11 @@ get_access_token_alloc(
     res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         fputs(error, stderr);
-        memfclose(mf);
-        return NULL;
+        ptr = NULL;
+    } else {
+        ptr = memfstrdup(mf);
     }
-    ptr = memfstrdup(mf);
+    g_free(query);
     memfclose(mf);
     return ptr;
 }
@@ -957,7 +949,7 @@ get_access_token_alloc(
  */
 static gpointer
 process_thread(gpointer data) {
-    PROCESS_THREAD_INFO* info = (PROCESS_THREAD_INFO*)data;
+    PROCESS_THREAD_INFO* info = (PROCESS_THREAD_INFO*) data;
 
     info->retval = info->func(info->data);
     info->processing = FALSE;
@@ -972,17 +964,17 @@ process_func(
     GtkWidget* loading_image = NULL;
     GtkWidget* loading_label = NULL;
     PROCESS_THREAD_INFO info;
-    GError *error = NULL;
+    GError* error = NULL;
     GThread* thread = NULL;
 
     if (parent) {
         parent = gtk_widget_get_toplevel(parent);
-        loading_image = (GtkWidget*)g_object_get_data(G_OBJECT(parent),
+        loading_image = (GtkWidget*) g_object_get_data(G_OBJECT(parent),
                 "loading-image");
         if (loading_image) gtk_widget_show(loading_image);
 
         if (message) {
-            loading_label = (GtkWidget*)g_object_get_data(G_OBJECT(parent),
+            loading_label = (GtkWidget*) g_object_get_data(G_OBJECT(parent),
                     "loading-label");
             gtk_label_set_text(GTK_LABEL(loading_label), message);
             gtk_widget_show(loading_label);
@@ -1045,12 +1037,12 @@ error_dialog(GtkWidget* widget, const char* message) {
 
 static void
 insert_status_text(GtkTextBuffer* buffer, GtkTextIter* iter, const char* status) {
-    char* ptr = (char*)status;
+    char* ptr = (char*) status;
     char* last = ptr;
     if (!status) return;
     while(*ptr) {
         if (!strncmp(ptr, "http://", 7) || !strncmp(ptr, "ftp://", 6)) {
-            GtkTextTag *tag;
+            GtkTextTag* tag;
             int len;
             char* link;
             char* tmp;
@@ -1074,13 +1066,13 @@ insert_status_text(GtkTextBuffer* buffer, GtkTextIter* iter, const char* status)
                     PANGO_UNDERLINE_SINGLE,
                     NULL);
             url = g_strdup(link);
-            g_object_set_data(G_OBJECT(tag), "url", (gpointer)url);
+            g_object_set_data(G_OBJECT(tag), "url", (gpointer) url);
             gtk_text_buffer_insert_with_tags(buffer, iter, link, -1, tag, NULL);
             free(link);
             ptr = last = tmp;
         } else
         if (*ptr == '@' || !strncmp(ptr, "\xef\xbc\xa0", 3)) {
-            GtkTextTag *tag;
+            GtkTextTag* tag;
             int len;
             char* link;
             char* tmp;
@@ -1110,8 +1102,8 @@ insert_status_text(GtkTextBuffer* buffer, GtkTextIter* iter, const char* status)
                         "underline",
                         PANGO_UNDERLINE_SINGLE,
                         NULL);
-                g_object_set_data(G_OBJECT(tag), "user_id", (gpointer)user_id);
-                g_object_set_data(G_OBJECT(tag), "user_name", (gpointer)user_name);
+                g_object_set_data(G_OBJECT(tag), "user_id", (gpointer) user_id);
+                g_object_set_data(G_OBJECT(tag), "user_name", (gpointer) user_name);
                 gtk_text_buffer_insert_with_tags(buffer, iter, url, -1, tag, NULL);
                 g_free(url);
                 ptr = last = tmp;
@@ -1119,7 +1111,7 @@ insert_status_text(GtkTextBuffer* buffer, GtkTextIter* iter, const char* status)
                 ptr = tmp;
         } else
         if (*ptr == '#') {
-            GtkTextTag *tag;
+            GtkTextTag* tag;
             int len;
             char* link;
             char* tmp;
@@ -1142,7 +1134,7 @@ insert_status_text(GtkTextBuffer* buffer, GtkTextIter* iter, const char* status)
                         "underline",
                         PANGO_UNDERLINE_SINGLE,
                         NULL);
-                g_object_set_data(G_OBJECT(tag), "tag_name", (gpointer)link);
+                g_object_set_data(G_OBJECT(tag), "tag_name", (gpointer) link);
                 gtk_text_buffer_insert_with_tags(buffer, iter, link, -1, tag, NULL);
                 ptr = last = tmp;
             } else
@@ -1155,8 +1147,8 @@ insert_status_text(GtkTextBuffer* buffer, GtkTextIter* iter, const char* status)
 }
 
 static time_t
-atomtime_to_time(struct tm* tm, char *s) {
-    char *os;
+atomtime_to_time(struct tm* tm, char* s) {
+    char* os;
     int i;
     struct tm tmptm;
     time_t tmptime;
@@ -1228,8 +1220,8 @@ atomtime_to_time(struct tm* tm, char *s) {
 }
 
 static time_t
-tweettime_to_time(struct tm* tm, char *s) {
-    char *os;
+tweettime_to_time(struct tm* tm, char* s) {
+    char* os;
     int i;
     struct tm tmptm;
     time_t tmptime;
@@ -1337,11 +1329,10 @@ clean_context(GtkWidget* window) {
  */
 static gpointer
 search_timeline_thread(gpointer data) {
-    GtkWidget* window = (GtkWidget*)data;
+    GtkWidget* window = (GtkWidget*) data;
     GtkTextBuffer* buffer = NULL;
     CURL* curl = NULL;
     CURLcode res = CURLE_OK;
-    struct curl_slist *headers = NULL;
     long http_status = 0;
 
     gchar* search = NULL;
@@ -1350,7 +1341,7 @@ search_timeline_thread(gpointer data) {
     gchar* title = NULL;
 
     char* ptr = NULL;
-    char url[2048];
+    char* url;
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
     MEMFILE* mhead = NULL;
@@ -1359,7 +1350,6 @@ search_timeline_thread(gpointer data) {
     char* head = NULL;
     int n;
     int length;
-    char* cond;
 
     xmlDocPtr doc = NULL;
     xmlNodeSetPtr nodes = NULL;
@@ -1370,17 +1360,18 @@ search_timeline_thread(gpointer data) {
 
     PIXBUF_CACHE* pixbuf_cache = NULL;
 
-    strncpy(url, SERVICE_SEARCH_STATUS_URL, sizeof(url)-1);
     search = g_object_get_data(G_OBJECT(window), "search");
     ptr = urlencode_alloc(search);
-    strcat(url, "?q=");
-    strcat(url, ptr);
+    url = g_strdup_printf("%s?q=%s",
+            SERVICE_SEARCH_STATUS_URL,
+            ptr);
     free(ptr);
 
     page = g_object_get_data(G_OBJECT(window), "page");
     if (page) {
-        strcat(url, "&page=");
-        strcat(url, page);
+        char* tmp = g_strdup_printf("%s&page=%s", url, page);
+        g_free(url);
+        url = tmp;
     }
 
     mhead = memfopen();
@@ -1394,14 +1385,11 @@ search_timeline_thread(gpointer data) {
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, memfwrite);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, mhead);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
-    if (last_condition[0] != 0) {
-        headers = curl_slist_append(headers, last_condition);
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    }
     res = curl_easy_perform(curl);
     if (res == CURLE_OK)
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
 
+    g_free(url);
     head = memfstrdup(mhead);
     memfclose(mhead);
     body = memfstrdup(mbody);
@@ -1422,19 +1410,6 @@ search_timeline_thread(gpointer data) {
         }
         goto leave;
     }
-
-    cond = get_http_header_alloc(head, "ETag");
-    if (cond) {
-        snprintf(last_condition, sizeof(last_condition),
-                "If-None-Match: %s", cond);
-    } else {
-        cond = get_http_header_alloc(head, "Last-Modified");
-        if (cond) {
-            snprintf(last_condition, sizeof(last_condition),
-                    "If-None-Match: %s", cond);
-        }
-    }
-    if (cond) free(cond);
 
     /* parse xml */
     doc = body ? xmlParseDoc((xmlChar*) body) : NULL;
@@ -1464,7 +1439,7 @@ search_timeline_thread(gpointer data) {
     g_free(title);
 
     gdk_threads_enter();
-    buffer = (GtkTextBuffer*)g_object_get_data(G_OBJECT(window), "buffer");
+    buffer = (GtkTextBuffer*) g_object_get_data(G_OBJECT(window), "buffer");
     if (max_id || page) {
         gtk_text_buffer_get_end_iter(buffer, &iter);
     } else {
@@ -1499,22 +1474,22 @@ search_timeline_thread(gpointer data) {
         if (status->type != XML_ATTRIBUTE_NODE && status->type != XML_ELEMENT_NODE && status->type != XML_CDATA_SECTION_NODE) continue;
         status = status->children;
         while(status) {
-            if (!strcmp("guid", (char*)status->name)) {
-                char* stop = strchr((char*)status->children->content, '/');
+            if (!strcmp("guid", (char*) status->name)) {
+                char* stop = strchr((char*) status->children->content, '/');
                 if (stop) id = stop + 1;
-                else id = (char*)status->children->content;
+                else id = (char*) status->children->content;
             }
-            if (!strcmp("pubDate", (char*)status->name)) date = (char*)status->children->content;
-            if (!strcmp("description", (char*)status->name)) {
-                if (status->children) text = (char*)status->children->content;
+            if (!strcmp("pubDate", (char*) status->name)) date = (char*) status->children->content;
+            if (!strcmp("description", (char*) status->name)) {
+                if (status->children) text = (char*) status->children->content;
             }
-            if (!strcmp("image_link", (char*)status->name)) {
-                if (status->children) icon = (char*)status->children->content;
+            if (!strcmp("image_link", (char*) status->name)) {
+                if (status->children) icon = (char*) status->children->content;
             }
-            if (!strcmp("author", (char*)status->name)) {
+            if (!strcmp("author", (char*) status->name)) {
                 if (status->children) {
                     char* stop;
-                    real = user_name = user_id = (char*)status->children->content;
+                    real = user_name = user_id = (char*) status->children->content;
                     stop = strchr(user_id, '@');
                     if (stop) {
                         *stop = 0;
@@ -1543,7 +1518,7 @@ search_timeline_thread(gpointer data) {
             }
         }
         if (!pixbuf) {
-            pixbuf = url2pixbuf((char*)icon, NULL);
+            pixbuf = url2pixbuf((char*) icon, NULL);
             if (pixbuf) {
                 pixbuf_cache[cache].user_id = user_id;
                 pixbuf_cache[cache].pixbuf = pixbuf;
@@ -1681,9 +1656,9 @@ leave:
 static void
 search_timeline(GtkWidget* widget, gpointer user_data) {
     gpointer result;
-    GtkWidget* window = (GtkWidget*)gtk_widget_get_toplevel(widget);
-    GtkWidget* textview = (GtkWidget*)g_object_get_data(G_OBJECT(window), "textview");
-    GtkWidget* toolbox = (GtkWidget*)g_object_get_data(G_OBJECT(window), "toolbox");
+    GtkWidget* window = (GtkWidget*) gtk_widget_get_toplevel(widget);
+    GtkWidget* textview = (GtkWidget*) g_object_get_data(G_OBJECT(window), "textview");
+    GtkWidget* toolbox = (GtkWidget*) g_object_get_data(G_OBJECT(window), "toolbox");
 
     if (!application_info.access_token_secret) {
         if (!setup_dialog(window)) return;
@@ -1724,11 +1699,11 @@ search_timeline(GtkWidget* widget, gpointer user_data) {
  */
 static gpointer
 update_timeline_thread(gpointer data) {
-    GtkWidget* window = (GtkWidget*)data;
+    GtkWidget* window = (GtkWidget*) data;
     GtkTextBuffer* buffer = NULL;
     CURL* curl = NULL;
     CURLcode res = CURLE_OK;
-    struct curl_slist *headers = NULL;
+    struct curl_slist* headers = NULL;
     long http_status = 0;
 
     gchar* mode = NULL;
@@ -1741,13 +1716,12 @@ update_timeline_thread(gpointer data) {
 
     char* ptr = NULL;
     char* tmp;
-    char key[4096];
-    char query[4096];
-    char text[4096];
+    char* key;
+    char* query;
+    char* url;
+    char* purl;
+    char* nonce;
     char auth[21];
-    char tmstr[15];
-    char nonce[30] = {0};
-    char url[2048];
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
     MEMFILE* mhead;
@@ -1767,82 +1741,77 @@ update_timeline_thread(gpointer data) {
 
     PIXBUF_CACHE* pixbuf_cache = NULL;
 
-    memset(url, 0, sizeof(url));
     mode = g_object_get_data(G_OBJECT(window), "mode");
     if (mode && !strcmp(mode, "replies")) {
-        strncpy(url, SERVICE_REPLIES_STATUS_URL, sizeof(url)-1);
+        url = g_strdup(SERVICE_REPLIES_STATUS_URL);
     } else {
         user_id = g_object_get_data(G_OBJECT(window), "user_id");
         user_name = g_object_get_data(G_OBJECT(window), "user_name");
         status_id = g_object_get_data(G_OBJECT(window), "status_id");
         if (status_id) {
-            snprintf(url, sizeof(url), SERVICE_THREAD_STATUS_URL, status_id);
+            url = g_strdup_printf(SERVICE_THREAD_STATUS_URL, status_id);
             /* status_id is temporary value */
             g_free(status_id);
             g_object_set_data(G_OBJECT(window), "status_id", NULL);
         }
         else
         if (user_id)
-            snprintf(url, sizeof(url), SERVICE_USER_STATUS_URL, user_id);
+            url = g_strdup_printf(SERVICE_USER_STATUS_URL, user_id);
         else
-            strncpy(url, SERVICE_HOME_STATUS_URL, sizeof(url)-1);
+            url = g_strdup(SERVICE_HOME_STATUS_URL);
     }
 
-    snprintf(tmstr, sizeof(tmstr), "%d", (int) time(0));
-    ptr = get_nonce_alloc();
-    strncpy(nonce, ptr, sizeof(nonce)-1);
-    free(ptr);
-
-    snprintf(query, sizeof(query),
+    nonce = get_nonce_alloc();
+    query = g_strdup_printf(
         "oauth_consumer_key=%s"
         "&oauth_nonce=%s"
         "&oauth_request_method=GET"
         "&oauth_signature_method=HMAC-SHA1"
-        "&oauth_timestamp=%s"
+        "&oauth_timestamp=%d"
         "&oauth_token=%s"
         "&oauth_version=1.0",
             application_info.consumer_key,
             nonce,
-            tmstr,
+            (int) time(0),
             application_info.access_token);
+    free(nonce);
 
     max_id = g_object_get_data(G_OBJECT(window), "last_status_id");
     if (max_id) {
         ptr = g_strdup_printf("max_id=%s&%s", max_id, query);
-        strncpy(query, ptr, sizeof(query)-1);
-        g_free(ptr);
+        g_free(query);
+        query = ptr;
     } else {
         page = g_object_get_data(G_OBJECT(window), "page");
         if (page) {
             ptr = g_strdup_printf("%s&page=%s", query, page);
-            strncpy(query, ptr, sizeof(query)-1);
-            g_free(ptr);
+            g_free(query);
+            query = ptr;
         }
     }
 
-    strcpy(text, "GET&");
-    ptr = urlencode_alloc(url);
-    strcat(text, ptr);
-    free(ptr);
-    strcat(text, "&");
+    purl = urlencode_alloc(url);
     ptr = urlencode_alloc(query);
-    strcat(text, ptr);
+    tmp = g_strdup_printf("GET&%s&%s", purl, ptr);
+    free(purl);
     free(ptr);
-
-    snprintf(key, sizeof(key),
+    key = g_strdup_printf(
             "%s&%s",
             application_info.consumer_secret,
             application_info.access_token_secret);
-    hmac((unsigned char*)key, strlen(key),
-            (unsigned char*)text, strlen(text), (unsigned char*) auth);
-    strcat(query, "&oauth_signature=");
+    hmac((unsigned char*) key, strlen(key),
+            (unsigned char*) tmp, strlen(tmp), (unsigned char*) auth);
+    g_free(key);
+    g_free(tmp);
     tmp = base64encode_alloc(auth, 20);
     ptr = urlencode_alloc(tmp);
-    strcat(query, ptr);
-    free(tmp);
+    tmp = g_strdup_printf("%s&oauth_signature=%s", query, ptr);
     free(ptr);
-    strcat(url, "?");
-    strcat(url, query);
+    g_free(query);
+    query = tmp;
+    purl = g_strdup_printf("%s?%s", url, query);
+    g_free(url);
+    url = purl;
 
     mhead = memfopen();
     mbody = memfopen();
@@ -1855,7 +1824,7 @@ update_timeline_thread(gpointer data) {
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, memfwrite);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, mhead);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
-    if (last_condition[0] != 0) {
+    if (last_condition) {
         headers = curl_slist_append(headers, last_condition);
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     }
@@ -1863,6 +1832,8 @@ update_timeline_thread(gpointer data) {
     if (res == CURLE_OK)
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
 
+    g_free(query);
+    g_free(url);
     head = memfstrdup(mhead);
     memfclose(mhead);
     body = memfstrdup(mbody);
@@ -1886,13 +1857,13 @@ update_timeline_thread(gpointer data) {
 
     cond = get_http_header_alloc(head, "ETag");
     if (cond) {
-        snprintf(last_condition, sizeof(last_condition),
-                "If-None-Match: %s", cond);
+        if (last_condition) g_free(last_condition);
+        last_condition = g_strdup_printf("If-None-Match: %s", cond);
     } else {
         cond = get_http_header_alloc(head, "Last-Modified");
         if (cond) {
-            snprintf(last_condition, sizeof(last_condition),
-                    "If-None-Match: %s", cond);
+            if (last_condition) g_free(last_condition);
+            last_condition = g_strdup_printf("If-None-Match: %s", cond);
         }
     }
     if (cond) free(cond);
@@ -1934,7 +1905,7 @@ update_timeline_thread(gpointer data) {
     g_free(title);
 
     gdk_threads_enter();
-    buffer = (GtkTextBuffer*)g_object_get_data(G_OBJECT(window), "buffer");
+    buffer = (GtkTextBuffer*) g_object_get_data(G_OBJECT(window), "buffer");
     if (max_id || page) {
         gtk_text_buffer_get_end_iter(buffer, &iter);
     } else {
@@ -1969,25 +1940,25 @@ update_timeline_thread(gpointer data) {
         if (status->type != XML_ATTRIBUTE_NODE && status->type != XML_ELEMENT_NODE && status->type != XML_CDATA_SECTION_NODE) continue;
         status = status->children;
         while(status) {
-            if (!strcmp("id", (char*)status->name)) id = (char*)status->children->content;
-            if (!strcmp("created_at", (char*)status->name)) date = (char*)status->children->content;
-            if (!strcmp("text", (char*)status->name)) {
-                if (status->children) text = (char*)status->children->content;
+            if (!strcmp("id", (char*) status->name)) id = (char*) status->children->content;
+            if (!strcmp("created_at", (char*) status->name)) date = (char*) status->children->content;
+            if (!strcmp("text", (char*) status->name)) {
+                if (status->children) text = (char*) status->children->content;
             }
-            if (!strcmp("favorited", (char*)status->name)) {
+            if (!strcmp("favorited", (char*) status->name)) {
                 if (!strcmp(status->children->content, "true")) favorited = 1;
             }
             /* user nodes */
-            if (!strcmp("user", (char*)status->name)) {
+            if (!strcmp("user", (char*) status->name)) {
                 xmlNodePtr user = status->children;
                 while(user) {
-                    if (!strcmp("id", (char*)user->name)) user_id = XML_CONTENT(user);
-                    if (!strcmp("name", (char*)user->name)) real = XML_CONTENT(user);
-                    if (!strcmp("screen_name", (char*)user->name)) user_name = XML_CONTENT(user);
-                    if (!strcmp("profile_image_url", (char*)user->name)) {
+                    if (!strcmp("id", (char*) user->name)) user_id = XML_CONTENT(user);
+                    if (!strcmp("name", (char*) user->name)) real = XML_CONTENT(user);
+                    if (!strcmp("screen_name", (char*) user->name)) user_name = XML_CONTENT(user);
+                    if (!strcmp("profile_image_url", (char*) user->name)) {
                         icon = XML_CONTENT(user);
-                        icon = (char*)g_strchomp((gchar*)icon);
-                        icon = (char*)g_strchug((gchar*)icon);
+                        icon = (char*) g_strchomp((gchar*) icon);
+                        icon = (char*) g_strchug((gchar*) icon);
                     }
                     user = user->next;
                 }
@@ -2011,7 +1982,7 @@ update_timeline_thread(gpointer data) {
             }
         }
         if (!pixbuf) {
-            pixbuf = url2pixbuf((char*)icon, NULL);
+            pixbuf = url2pixbuf((char*) icon, NULL);
             if (pixbuf) {
                 pixbuf_cache[cache].user_id = user_id;
                 pixbuf_cache[cache].pixbuf = pixbuf;
@@ -2149,10 +2120,10 @@ leave:
 static void
 update_timeline(GtkWidget* widget, gpointer user_data) {
     gpointer result;
-    GtkWidget* window = (GtkWidget*)gtk_widget_get_toplevel(widget);
-    GtkWidget* textview = (GtkWidget*)g_object_get_data(G_OBJECT(window), "textview");
-    GtkWidget* toolbox = (GtkWidget*)g_object_get_data(G_OBJECT(window), "toolbox");
-    GtkWidget* entry = (GtkWidget*)g_object_get_data(G_OBJECT(window), "entry");
+    GtkWidget* window = (GtkWidget*) gtk_widget_get_toplevel(widget);
+    GtkWidget* textview = (GtkWidget*) g_object_get_data(G_OBJECT(window), "textview");
+    GtkWidget* toolbox = (GtkWidget*) g_object_get_data(G_OBJECT(window), "toolbox");
+    GtkWidget* entry = (GtkWidget*) g_object_get_data(G_OBJECT(window), "entry");
 
     if (!application_info.access_token_secret) {
         if (!setup_dialog(window)) return;
@@ -2192,14 +2163,14 @@ update_timeline(GtkWidget* widget, gpointer user_data) {
 
 static void
 home_timeline(GtkWidget* widget, gpointer user_data) {
-    GtkWidget* window = (GtkWidget*)gtk_widget_get_toplevel(widget);
+    GtkWidget* window = (GtkWidget*) gtk_widget_get_toplevel(widget);
     clean_context(window);
     update_timeline(window, NULL);
 }
 
 static void
 replies_timeline(GtkWidget* widget, gpointer user_data) {
-    GtkWidget* window = (GtkWidget*)gtk_widget_get_toplevel(widget);
+    GtkWidget* window = (GtkWidget*) gtk_widget_get_toplevel(widget);
     clean_context(window);
     g_object_set_data(G_OBJECT(window), "mode", g_strdup("replies"));
     update_timeline(window, NULL);
@@ -2210,71 +2181,68 @@ replies_timeline(GtkWidget* widget, gpointer user_data) {
  */
 static gpointer
 retweet_status_thread(gpointer data) {
-    GtkWidget* window = (GtkWidget*)data;
+    GtkWidget* window = (GtkWidget*) data;
     CURL* curl = NULL;
     CURLcode res = CURLE_OK;
     long http_status = 0;
 
+    char* status_id = NULL;
+
     char* ptr = NULL;
     char* tmp;
+    char* key;
+    char* query;
+    char* nonce;
+    char* url;
+    char* purl;
     char auth[21];
-    char* status_id = NULL;
-    char key[4096];
-    char query[4096];
-    char text[4096];
-    char tmstr[15];
-    char nonce[30] = {0};
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
     MEMFILE* mbody;
     char* body;
-    char url[2048];
 
     gdk_threads_enter();
     status_id = g_object_get_data(G_OBJECT(window), "retweet");
     gdk_threads_leave();
 
     if (!status_id || strlen(status_id) == 0) return NULL;
-    snprintf(url, sizeof(url), SERVICE_RETWEET_URL, status_id);
+    url = g_strdup_printf(SERVICE_RETWEET_URL, status_id);
 
-    snprintf(tmstr, sizeof(tmstr), "%d", (int) time(0));
-    ptr = get_nonce_alloc();
-    strncpy(nonce, ptr, sizeof(nonce)-1);
-    free(ptr);
-
-    snprintf(query, sizeof(query),
+    nonce = get_nonce_alloc();
+    query = g_strdup_printf(
         "oauth_consumer_key=%s"
         "&oauth_nonce=%s"
         "&oauth_request_method=POST"
         "&oauth_signature_method=HMAC-SHA1"
-        "&oauth_timestamp=%s"
+        "&oauth_timestamp=%d"
         "&oauth_token=%s"
         "&oauth_version=1.0",
             application_info.consumer_key,
             nonce,
-            tmstr,
+            (int) time(0),
             application_info.access_token);
+    free(nonce);
 
-    strcpy(text, "POST&");
-    ptr = urlencode_alloc(url);
-    strcat(text, ptr);
-    free(ptr);
-    strcat(text, "&");
+    purl = urlencode_alloc(url);
     ptr = urlencode_alloc(query);
-    strcat(text, ptr);
+    tmp = g_strdup_printf("POST&%s&%s", purl, ptr);
+    free(purl);
     free(ptr);
-
-    snprintf(key, sizeof(key), "%s&%s",
+    key = g_strdup_printf(
+            "%s&%s",
             application_info.consumer_secret,
             application_info.access_token_secret);
-    hmac((unsigned char*)key, strlen(key),
-            (unsigned char*)text, strlen(text), (unsigned char*) auth);
-    strcat(query, "&oauth_signature=");
+    hmac((unsigned char*) key, strlen(key),
+            (unsigned char*) tmp, strlen(tmp), (unsigned char*) auth);
+    g_free(key);
+    g_free(tmp);
     tmp = base64encode_alloc(auth, 20);
     ptr = urlencode_alloc(tmp);
-    strcat(query, ptr);
     free(tmp);
+    tmp = g_strdup_printf("%s&oauth_signature=%s", query, ptr);
     free(ptr);
+    g_free(query);
+    query = tmp;
 
     mbody = memfopen();
     curl = curl_easy_init();
@@ -2291,8 +2259,10 @@ retweet_status_thread(gpointer data) {
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
 
     curl_easy_cleanup(curl);
+    g_free(query);
 
     body = memfstrdup(mbody);
+    memfclose(mbody);
     if (http_status != 200) {
         if (body) {
             result_str = xml_decode_alloc(body);
@@ -2310,9 +2280,9 @@ leave:
 static void
 retweet_status(GtkWidget* widget, const gchar* status_id) {
     gpointer result;
-    GtkWidget* window = (GtkWidget*)gtk_widget_get_toplevel(widget);
-    GtkWidget* textview = (GtkWidget*)g_object_get_data(G_OBJECT(window), "textview");
-    GtkWidget* toolbox = (GtkWidget*)g_object_get_data(G_OBJECT(window), "toolbox");
+    GtkWidget* window = (GtkWidget*) gtk_widget_get_toplevel(widget);
+    GtkWidget* textview = (GtkWidget*) g_object_get_data(G_OBJECT(window), "textview");
+    GtkWidget* toolbox = (GtkWidget*) g_object_get_data(G_OBJECT(window), "toolbox");
 
     is_processing = TRUE;
 
@@ -2324,11 +2294,12 @@ retweet_status(GtkWidget* widget, const gchar* status_id) {
                 GTK_TEXT_VIEW(textview),
                 GTK_TEXT_WINDOW_TEXT),
             watch_cursor);
-    g_object_set_data(G_OBJECT(window), "retweet", (gchar*)status_id);
+    g_object_set_data(G_OBJECT(window), "retweet", (gchar*) status_id);
     result = process_func(retweet_status_thread, window, window, _("retweeting status..."));
     g_object_set_data(G_OBJECT(window), "retweet", NULL);
     if (!result) {
-        last_condition[0] = 0;
+        if (last_condition) g_free(last_condition);
+        last_condition = NULL;
     }
     if (result) {
         /* show error message */
@@ -2354,71 +2325,67 @@ retweet_status(GtkWidget* widget, const gchar* status_id) {
  */
 static gpointer
 favorite_status_thread(gpointer data) {
-    GtkWidget* window = (GtkWidget*)data;
+    GtkWidget* window = (GtkWidget*) data;
     CURL* curl = NULL;
     CURLcode res = CURLE_OK;
     long http_status = 0;
 
     char* ptr = NULL;
     char* tmp;
-    char auth[21];
     char* status_id = NULL;
-    char key[4096];
-    char query[4096];
-    char text[4096];
-    char tmstr[15];
-    char nonce[30] = {0};
+    char* key;
+    char* query;
+    char* nonce;
+    char* url;
+    char* purl;
+    char auth[21];
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
     MEMFILE* mbody;
     char* body;
-    char url[2048];
 
     gdk_threads_enter();
     status_id = g_object_get_data(G_OBJECT(window), "favorite");
     gdk_threads_leave();
 
     if (!status_id || strlen(status_id) == 0) return NULL;
-    snprintf(url, sizeof(url), SERVICE_FAVORITE_URL, status_id);
+    url = g_strdup_printf(SERVICE_FAVORITE_URL, status_id);
 
-    snprintf(tmstr, sizeof(tmstr), "%d", (int) time(0));
-    ptr = get_nonce_alloc();
-    strncpy(nonce, ptr, sizeof(nonce)-1);
-    free(ptr);
-
-    snprintf(query, sizeof(query),
+    nonce = get_nonce_alloc();
+    query = g_strdup_printf(
         "oauth_consumer_key=%s"
         "&oauth_nonce=%s"
         "&oauth_request_method=POST"
         "&oauth_signature_method=HMAC-SHA1"
-        "&oauth_timestamp=%s"
+        "&oauth_timestamp=%d"
         "&oauth_token=%s"
         "&oauth_version=1.0",
             application_info.consumer_key,
             nonce,
-            tmstr,
+            (int) time(0),
             application_info.access_token);
+    free(nonce);
 
-    strcpy(text, "POST&");
-    ptr = urlencode_alloc(url);
-    strcat(text, ptr);
-    free(ptr);
-    strcat(text, "&");
+    purl = urlencode_alloc(url);
     ptr = urlencode_alloc(query);
-    strcat(text, ptr);
+    tmp = g_strdup_printf("POST&%s&%s", purl, ptr);
+    free(purl);
     free(ptr);
-
-    snprintf(key, sizeof(key), "%s&%s",
+    key = g_strdup_printf(
+            "%s&%s",
             application_info.consumer_secret,
             application_info.access_token_secret);
-    hmac((unsigned char*)key, strlen(key),
-            (unsigned char*)text, strlen(text), (unsigned char*) auth);
-    strcat(query, "&oauth_signature=");
+    hmac((unsigned char*) key, strlen(key),
+            (unsigned char*) tmp, strlen(tmp), (unsigned char*) auth);
+    g_free(key);
+    g_free(tmp);
     tmp = base64encode_alloc(auth, 20);
     ptr = urlencode_alloc(tmp);
-    strcat(query, ptr);
     free(tmp);
+    tmp = g_strdup_printf("%s&oauth_signature=%s", query, ptr);
     free(ptr);
+    g_free(query);
+    query = tmp;
 
     mbody = memfopen();
     curl = curl_easy_init();
@@ -2435,6 +2402,7 @@ favorite_status_thread(gpointer data) {
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
 
     curl_easy_cleanup(curl);
+    g_free(query);
 
     body = memfstrdup(mbody);
     if (http_status != 200) {
@@ -2455,9 +2423,9 @@ static void
 favorite_status(GtkWidget* widget, GtkTextTag* tag) {
     gchar* status_id;
     gpointer result;
-    GtkWidget* window = (GtkWidget*)gtk_widget_get_toplevel(widget);
-    GtkWidget* textview = (GtkWidget*)g_object_get_data(G_OBJECT(window), "textview");
-    GtkWidget* toolbox = (GtkWidget*)g_object_get_data(G_OBJECT(window), "toolbox");
+    GtkWidget* window = (GtkWidget*) gtk_widget_get_toplevel(widget);
+    GtkWidget* textview = (GtkWidget*) g_object_get_data(G_OBJECT(window), "textview");
+    GtkWidget* toolbox = (GtkWidget*) g_object_get_data(G_OBJECT(window), "toolbox");
 
     is_processing = TRUE;
 
@@ -2470,7 +2438,7 @@ favorite_status(GtkWidget* widget, GtkTextTag* tag) {
                 GTK_TEXT_WINDOW_TEXT),
             watch_cursor);
     status_id = g_object_get_data(G_OBJECT(tag), "favorite");
-    g_object_set_data(G_OBJECT(window), "favorite", (gchar*)status_id);
+    g_object_set_data(G_OBJECT(window), "favorite", (gchar*) status_id);
     result = process_func(favorite_status_thread, window, window, _("favoriting status..."));
     g_object_set_data(G_OBJECT(window), "favorite", NULL);
     if (!result) {
@@ -2501,7 +2469,7 @@ favorite_status(GtkWidget* widget, GtkTextTag* tag) {
  */
 static gpointer
 post_status_thread(gpointer data) {
-    GtkWidget* window = (GtkWidget*)data;
+    GtkWidget* window = (GtkWidget*) data;
     GtkWidget* entry = NULL;
     CURL* curl = NULL;
     CURLcode res = CURLE_OK;
@@ -2510,78 +2478,71 @@ post_status_thread(gpointer data) {
     gchar* in_reply_to_status_id = NULL;
     char* ptr = NULL;
     char* tmp;
-    char auth[21];
     char* status = NULL;
     char* status_encoded;
-    char key[4096];
-    char query[4096];
-    char text[4096];
-    char tmstr[15];
-    char nonce[30] = {0};
+    char* key;
+    char* query;
+    char* nonce;
+    char* purl;
+    char auth[21];
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
     MEMFILE* mbody;
     char* body = NULL;
 
     gdk_threads_enter();
-    entry = (GtkWidget*)g_object_get_data(G_OBJECT(window), "entry");
-    status = (char*)gtk_entry_get_text(GTK_ENTRY(entry));
+    entry = (GtkWidget*) g_object_get_data(G_OBJECT(window), "entry");
+    status = (char*) gtk_entry_get_text(GTK_ENTRY(entry));
     gdk_threads_leave();
 
     if (!status || strlen(status) == 0) return NULL;
 
-    snprintf(tmstr, sizeof(tmstr), "%d", (int) time(0));
-    ptr = get_nonce_alloc();
-    strncpy(nonce, ptr, sizeof(nonce)-1);
-    free(ptr);
-
     status_encoded = urlencode_alloc(status);
-
-    snprintf(query, sizeof(query),
+    nonce = get_nonce_alloc();
+    query = g_strdup_printf(
         "oauth_consumer_key=%s"
         "&oauth_nonce=%s"
         "&oauth_request_method=POST"
         "&oauth_signature_method=HMAC-SHA1"
-        "&oauth_timestamp=%s"
+        "&oauth_timestamp=%d"
         "&oauth_token=%s"
         "&oauth_version=1.0"
         "&status=%s",
             application_info.consumer_key,
             nonce,
-            tmstr,
+            (int) time(0),
             application_info.access_token,
             status_encoded);
+    free(nonce);
+    free(status_encoded);
 
     in_reply_to_status_id = g_object_get_data(G_OBJECT(window), "in_reply_to_status_id");
     if (in_reply_to_status_id) {
-        strcpy(text, query);
-        ptr = g_strdup_printf("in_reply_to_status_id=%s&%s", in_reply_to_status_id, query);
-        strncpy(query, ptr, sizeof(query)-1);
-        g_free(ptr);
+        tmp = g_strdup_printf("in_reply_to_status_id=%s&%s", in_reply_to_status_id, query);
+        g_free(query);
+        query = tmp;
     }
 
-    free(status_encoded);
-
-    strcpy(text, "POST&");
-    ptr = urlencode_alloc(SERVICE_UPDATE_URL);
-    strcat(text, ptr);
-    free(ptr);
-    strcat(text, "&");
+    purl = urlencode_alloc(SERVICE_UPDATE_URL);
     ptr = urlencode_alloc(query);
-    strcat(text, ptr);
+    tmp = g_strdup_printf("POST&%s&%s", purl, ptr);
+    free(purl);
     free(ptr);
-
-    snprintf(key, sizeof(key), "%s&%s",
+    key = g_strdup_printf(
+            "%s&%s",
             application_info.consumer_secret,
             application_info.access_token_secret);
-    hmac((unsigned char*)key, strlen(key),
-            (unsigned char*)text, strlen(text), (unsigned char*) auth);
-    strcat(query, "&oauth_signature=");
+    hmac((unsigned char*) key, strlen(key),
+            (unsigned char*) tmp, strlen(tmp), (unsigned char*) auth);
+    g_free(key);
+    g_free(tmp);
     tmp = base64encode_alloc(auth, 20);
     ptr = urlencode_alloc(tmp);
-    strcat(query, ptr);
     free(tmp);
+    tmp = g_strdup_printf("%s&oauth_signature=%s", query, ptr);
     free(ptr);
+    g_free(query);
+    query = tmp;
 
     mbody = memfopen();
     curl = curl_easy_init();
@@ -2598,10 +2559,10 @@ post_status_thread(gpointer data) {
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
 
     curl_easy_cleanup(curl);
+    g_free(query);
 
     body = memfstrdup(mbody);
     memfclose(mbody);
-
     if (res != CURLE_OK) {
         result_str = g_strdup(error);
         goto leave;
@@ -2628,9 +2589,9 @@ leave:
 static void
 post_status(GtkWidget* widget, gpointer user_data) {
     gpointer result;
-    GtkWidget* window = (GtkWidget*)user_data;
-    GtkWidget* textview = (GtkWidget*)g_object_get_data(G_OBJECT(window), "textview");
-    GtkWidget* toolbox = (GtkWidget*)g_object_get_data(G_OBJECT(window), "toolbox");
+    GtkWidget* window = (GtkWidget*) user_data;
+    GtkWidget* textview = (GtkWidget*) g_object_get_data(G_OBJECT(window), "textview");
+    GtkWidget* toolbox = (GtkWidget*) g_object_get_data(G_OBJECT(window), "toolbox");
 
     if (!application_info.access_token_secret) {
         if (!setup_dialog(window)) return;
@@ -2648,7 +2609,8 @@ post_status(GtkWidget* widget, gpointer user_data) {
             watch_cursor);
     result = process_func(post_status_thread, window, window, _("posting status..."));
     if (!result) {
-        last_condition[0] = 0;
+        if (last_condition) g_free(last_condition);
+        last_condition = NULL;
         clean_context(window);
         result = process_func(update_timeline_thread, window, window, _("updating statuses..."));
     }
@@ -2673,10 +2635,11 @@ post_status(GtkWidget* widget, gpointer user_data) {
  * reload button
  */
 static void
-on_reload_clicked(GtkWidget *widget, gpointer user_data) {
+on_reload_clicked(GtkWidget* widget, gpointer user_data) {
     GtkWidget* window = gtk_widget_get_toplevel(widget);
     gchar* mode = g_object_get_data(G_OBJECT(window), "mode");
-    last_condition[0] = 0;
+    if (last_condition) g_free(last_condition);
+    last_condition = NULL;
     if (mode && !strcmp(mode, "search")) {
         search_timeline(window, NULL);
     } else {
@@ -2688,9 +2651,9 @@ on_reload_clicked(GtkWidget *widget, gpointer user_data) {
  * enter key handler
  */
 static gboolean
-on_entry_activate(GtkWidget *widget, gpointer user_data) {
+on_entry_activate(GtkWidget* widget, gpointer user_data) {
     GtkWidget* window = gtk_widget_get_toplevel(widget);
-    char* message = (char*)gtk_entry_get_text(GTK_ENTRY(widget));
+    char* message = (char*) gtk_entry_get_text(GTK_ENTRY(widget));
 
     if (is_processing) return FALSE;
     if (!message || strlen(message) == 0) return FALSE;
@@ -2714,7 +2677,6 @@ setup_dialog(GtkWidget* window) {
     char* tmp;
     const char* request_token = NULL;
     const char* request_token_secret = NULL;
-    char text[4096];
 
     /* login dialog */
     dialog = gtk_dialog_new();
@@ -2772,12 +2734,13 @@ setup_dialog(GtkWidget* window) {
         return -1;
     }
 
-    snprintf(text, sizeof(text)-1, "%s?oauth_token=%s", SERVICE_AUTH_URL, request_token);
-    open_url(text);
+    ptr = g_strdup_printf("%s?oauth_token=%s",
+            SERVICE_AUTH_URL, request_token);
+    open_url(ptr);
 
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK) {
         /* set mail/pass value to window object */
-        char* pin_code = (char*)gtk_entry_get_text(GTK_ENTRY(pin));
+        char* pin_code = (char*) gtk_entry_get_text(GTK_ENTRY(pin));
 
         // parse response parameters
         tmp = ptr;
@@ -2839,9 +2802,9 @@ setup_dialog(GtkWidget* window) {
 static void
 textview_change_cursor(GtkWidget* textview, gint x, gint y) {
     static gboolean hovering_over_link = FALSE;
-    GSList *tags = NULL;
+    GSList* tags = NULL;
     GtkWidget* toplevel;
-    GtkTextBuffer *buffer;
+    GtkTextBuffer* buffer;
     GtkTextIter iter;
     GtkTooltips* tooltips = NULL;
     gboolean hovering = FALSE;
@@ -2854,13 +2817,13 @@ textview_change_cursor(GtkWidget* textview, gint x, gint y) {
     toplevel = gtk_widget_get_toplevel(textview);
     buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textview));
     gtk_text_view_get_iter_at_location(GTK_TEXT_VIEW(textview), &iter, x, y);
-    tooltips = (GtkTooltips*)g_object_get_data(G_OBJECT(toplevel), "tooltips");
+    tooltips = (GtkTooltips*) g_object_get_data(G_OBJECT(toplevel), "tooltips");
 
     tags = gtk_text_iter_get_tags(&iter);
     if (tags) {
         len = g_slist_length(tags);
         for(n = 0; n < len; n++) {
-            GtkTextTag* tag = (GtkTextTag*)g_slist_nth_data(tags, n);
+            GtkTextTag* tag = (GtkTextTag*) g_slist_nth_data(tags, n);
             if (tag) {
                 if (g_object_get_data(G_OBJECT(tag), "url")
                     || g_object_get_data(G_OBJECT(tag), "user_id")
@@ -2900,16 +2863,16 @@ static gboolean
 textview_event_after(GtkWidget* textview, GdkEvent* ev) {
     GtkWidget* window;
     GtkTextIter start, end, iter;
-    GtkTextBuffer *buffer;
-    GdkEventButton *event;
-    GSList *tags = NULL;
+    GtkTextBuffer* buffer;
+    GdkEventButton* event;
+    GSList* tags = NULL;
     gint x, y;
     int len, n;
 
     if (is_processing) return FALSE;
 
     if (ev->type != GDK_BUTTON_RELEASE) return FALSE;
-    event = (GdkEventButton*)ev;
+    event = (GdkEventButton*) ev;
     if (event->button != 1) return FALSE;
 
     window = gtk_widget_get_toplevel(textview);
@@ -2922,14 +2885,14 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
     gtk_text_view_window_to_buffer_coords(
             GTK_TEXT_VIEW(textview),
             GTK_TEXT_WINDOW_WIDGET,
-            (gint)event->x, (gint)event->y, &x, &y);
+            (gint) event->x, (gint) event->y, &x, &y);
     gtk_text_view_get_iter_at_location(GTK_TEXT_VIEW(textview), &iter, x, y);
 
     tags = gtk_text_iter_get_tags(&iter);
     if (tags) {
         len = g_slist_length(tags);
         for(n = 0; n < len; n++) {
-            GtkTextTag* tag = (GtkTextTag*)g_slist_nth_data(tags, n);
+            GtkTextTag* tag = (GtkTextTag*) g_slist_nth_data(tags, n);
             if (tag) {
                 gpointer tag_data;
                 tag_data = g_object_get_data(G_OBJECT(tag), "url");
@@ -2958,7 +2921,7 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
                 tag_data = g_object_get_data(G_OBJECT(tag), "retweet");
                 if (tag_data) {
                     clean_context(window);
-                    retweet_status(window, (gchar*)tag_data);
+                    retweet_status(window, (gchar*) tag_data);
                     break;
                 }
 
@@ -2981,8 +2944,8 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
                         if (text) g_free(text);
                         g_object_set_data(G_OBJECT(window), "in_reply_to_status_id", g_strdup(in_reply_to_status_id));
                     }
-                    entry = (GtkWidget*)g_object_get_data(G_OBJECT(window), "entry");
-                    text = g_strdup_printf("@%s ", (gchar*)tag_data);
+                    entry = (GtkWidget*) g_object_get_data(G_OBJECT(window), "entry");
+                    text = g_strdup_printf("@%s ", (gchar*) tag_data);
                     gtk_entry_set_text(GTK_ENTRY(entry), text);
                     g_free(text);
                     gtk_widget_grab_focus(entry);
@@ -3013,7 +2976,7 @@ textview_motion(GtkWidget* textview, GdkEventMotion* event) {
     gtk_text_view_window_to_buffer_coords(
             GTK_TEXT_VIEW(textview),
             GTK_TEXT_WINDOW_WIDGET,
-            (gint)event->x, (gint)event->y, &x, &y);
+            (gint) event->x, (gint) event->y, &x, &y);
     textview_change_cursor(textview, x, y);
     gdk_window_get_pointer(textview->window, NULL, NULL, NULL);
     return FALSE;
@@ -3052,7 +3015,7 @@ buffer_delete_range(GtkTextBuffer* buffer, GtkTextIter* start, GtkTextIter* end,
         for(n = 0; n < len; n++) {
             const char** tag_name;
             gpointer tag_data;
-            GtkTextTag* tag = (GtkTextTag*)g_slist_nth_data(tags, n);
+            GtkTextTag* tag = (GtkTextTag*) g_slist_nth_data(tags, n);
 
             tag_name = tag_names;
             while (*tag_name) {
@@ -3070,8 +3033,8 @@ buffer_delete_range(GtkTextBuffer* buffer, GtkTextIter* start, GtkTextIter* end,
 }
 
 static void
-swin_vadjust_value_changed(GtkAdjustment *vadjust, gpointer user_data) {
-    GtkWidget* window = (GtkWidget*)user_data;
+swin_vadjust_value_changed(GtkAdjustment* vadjust, gpointer user_data) {
+    GtkWidget* window = (GtkWidget*) user_data;
     if (!is_processing && gtk_adjustment_get_upper(vadjust) ==
         gtk_adjustment_get_value(vadjust)
         + gtk_adjustment_get_page_size(vadjust)) {
@@ -3083,7 +3046,8 @@ swin_vadjust_value_changed(GtkAdjustment *vadjust, gpointer user_data) {
             if (page) g_free(page);
             g_object_set_data(G_OBJECT(window), "page", g_strdup_printf("%d", page_no));
         }
-        last_condition[0] = 0;
+        if (last_condition) g_free(last_condition);
+        last_condition = NULL;
         if (mode && !strcmp(mode, "search")) {
             search_timeline(window, NULL);
         } else {
@@ -3096,7 +3060,7 @@ swin_vadjust_value_changed(GtkAdjustment *vadjust, gpointer user_data) {
 
 static void
 config_dialog(GtkWidget* widget, gpointer user_data) {
-    GtkWidget* window = (GtkWidget*)user_data;
+    GtkWidget* window = (GtkWidget*) user_data;
     setup_dialog(window);
 }
 
@@ -3108,7 +3072,7 @@ load_config() {
     const gchar* confdir = g_get_user_config_dir();
     gchar* conffile = g_build_filename(confdir, APP_NAME, "config", NULL);
     char buf[BUFSIZ];
-    FILE *fp = fopen(conffile, "rb");
+    FILE* fp = fopen(conffile, "rb");
     g_free(conffile);
     if (!fp) return -1;
     memset(&application_info, 0, sizeof(application_info));
@@ -3129,7 +3093,7 @@ load_config() {
 
 static int
 save_config() {
-    gchar* confdir = (gchar*)g_get_user_config_dir();
+    gchar* confdir = (gchar*) g_get_user_config_dir();
     gchar* conffile = NULL;
     FILE* fp = NULL;
     confdir = g_build_path(G_DIR_SEPARATOR_S, confdir, APP_NAME, NULL);
