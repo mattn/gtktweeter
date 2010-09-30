@@ -1227,7 +1227,7 @@ atomtime_to_time(struct tm* tm, char* s) {
     tmptm.tm_isdst = 0;
 
     tmptm.tm_yday = 0;
-    tmptime = mktime(&tmptm);
+    tmptime = mktime(&tmptm) - timezone;
     memcpy(tm, localtime(&tmptime), sizeof(struct tm));
     return mktime(tm);
 }
@@ -1302,7 +1302,7 @@ tweettime_to_time(struct tm* tm, char* s) {
     tmptm.tm_year = atoi(s) - 1900;
 
     tmptm.tm_yday = 0;
-    tmptime = mktime(&tmptm);
+    tmptime = mktime(&tmptm) - timezone;
     memcpy(tm, localtime(&tmptime), sizeof(struct tm));
     return mktime(tm);
 }
