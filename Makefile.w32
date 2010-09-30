@@ -2,6 +2,24 @@ CFLAGS=/MT
 
 all : gtktweeter.exe
 
+console : gtktweeter.obj gtktweeter.res
+	link -out:gtktweeter.exe \
+		-LIBPATH:c:/gtk/lib \
+		gtktweeter.obj \
+		gtktweeter.res \
+		-subsystem:console \
+		gtk-win32-2.0.lib \
+		gdk-win32-2.0.lib \
+		glib-2.0.lib \
+		gthread-2.0.lib \
+		gdk_pixbuf-2.0.lib \
+		gobject-2.0.lib \
+		pango-1.0.lib \
+		xml2.lib \
+		libcurl.lib \
+		intl.lib \
+		shell32.lib
+
 gtktweeter.exe : gtktweeter.obj gtktweeter.res
 	link -out:gtktweeter.exe \
 		-LIBPATH:c:/gtk/lib \
