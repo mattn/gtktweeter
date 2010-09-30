@@ -67,6 +67,7 @@
 #define APP_NAME                   "gtktweeter"
 #define APP_VERSION                "0.1.0"
 #define SERVICE_SEARCH_STATUS_URL  "http://search.twitter.com/search.rss"
+#define SERVICE_RATE_LIMIT_URL     "http://api.twitter.com/1/account/rate_limit_status.xml"
 #define SERVICE_USER_SHOW_URL      "https://api.twitter.com/1/users/show/%s.xml"
 #define SERVICE_UPDATE_URL         "https://api.twitter.com/1/statuses/update.xml"
 #define SERVICE_RETWEET_URL        "https://api.twitter.com/1/statuses/retweet/%s.xml"
@@ -1351,6 +1352,133 @@ clean_context(GtkWidget* window) {
         prop_name++;
     }
     g_object_set_data(G_OBJECT(window), "tooltip_data", NULL);
+}
+
+/**
+ * API limit
+ */
+static gpointer
+check_ratelimit_thread(gpointer data) {
+    CURL* curl = NULL;
+    CURLcode res = CURLE_OK;
+    long http_status = 0;
+    struct tm localtm = {0};
+    char localdate[256];
+    int remaining_hits = 0;
+
+    char* url;
+    gpointer result_str = NULL;
+    MEMFILE* mbody = NULL;
+    char* body = NULL;
+
+    xmlDocPtr doc = NULL;
+    xmlNodeSetPtr nodes = NULL;
+    xmlXPathContextPtr ctx = NULL;
+    xmlXPathObjectPtr path = NULL;
+    xmlNodePtr info = NULL;
+
+    url = g_strdup(SERVICE_RATE_LIMIT_URL);
+
+    mbody = memfopen();
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, mbody);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+    res = curl_easy_perform(curl);
+    if (res == CURLE_OK)
+        curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
+
+    g_free(url);
+    body = memfstrdup(mbody);
+    memfclose(mbody);
+
+    if (res != CURLE_OK) {
+        goto leave;
+    }
+    if (http_status == 304) {
+        goto leave;
+    }
+    if (http_status != 200) {
+        goto leave;
+    }
+
+    /* parse xml */
+    doc = body ? xmlParseDoc((xmlChar*) body) : NULL;
+    if (!doc) goto leave;
+    ctx = xmlXPathNewContext(doc);
+    if (!ctx) goto leave;
+    path = xmlXPathEvalExpression((xmlChar*)"/hash", ctx);
+    if (!path) goto leave;
+    nodes = path->nodesetval;
+    if (!nodes || !nodes->nodeTab) goto leave;
+    info = nodes->nodeTab[0]->children;
+    while(info) {
+        if (!strcmp("remaining-hits", (char*) info->name)) {
+            remaining_hits = atol(XML_CONTENT(info));
+        }
+        if (!strcmp("reset-time-in-seconds", (char*) info->name)) {
+            long times = atol(XML_CONTENT(info));
+            memcpy(&localtm, localtime(&times), sizeof(struct tm));
+        }
+        info = info->next;
+    }
+
+    strftime(localdate, sizeof(localdate), "%x %X", &localtm);
+    result_str = g_strdup_printf("%d times before %s", remaining_hits, localdate);
+
+leave:
+    if (body) free(body);
+    if (path) xmlXPathFreeObject(path);
+    if (ctx) xmlXPathFreeContext(ctx);
+    if (doc) xmlFreeDoc(doc);
+    return result_str;
+}
+
+static void
+check_ratelimit(GtkWidget* widget, gpointer user_data) {
+    gpointer result;
+    GtkWidget* window = (GtkWidget*) gtk_widget_get_toplevel(widget);
+    GtkWidget* textview = (GtkWidget*) g_object_get_data(G_OBJECT(window), "textview");
+    GtkWidget* toolbox = (GtkWidget*) g_object_get_data(G_OBJECT(window), "toolbox");
+    GtkWidget* statusbar = (GtkWidget*) g_object_get_data(G_OBJECT(window), "statusbar");
+    guint context_id = (guint) g_object_get_data(G_OBJECT(statusbar), "context_id");
+
+    if (!application_info.access_token_secret) {
+        if (!setup_dialog(window)) return;
+    }
+
+    is_processing = TRUE;
+
+    stop_reload_timer(window);
+    /* disable toolbox */
+    gtk_widget_set_sensitive(toolbox, FALSE);
+    /* set watch cursor at textview */
+    gdk_window_set_cursor(
+            gtk_text_view_get_window(
+                GTK_TEXT_VIEW(textview),
+                GTK_TEXT_WINDOW_TEXT),
+            watch_cursor);
+
+    gtk_statusbar_pop(GTK_STATUSBAR(statusbar), context_id);
+    result = process_func(check_ratelimit_thread, window, window, _("checking ratelimit..."));
+    if (result) {
+        gtk_statusbar_push(GTK_STATUSBAR(statusbar), context_id, result);
+        g_free(result);
+    }
+    /* enable toolbox */
+    gtk_widget_set_sensitive(toolbox, TRUE);
+    /* set regular cursor at textview */
+    gdk_window_set_cursor(
+            gtk_text_view_get_window(
+                GTK_TEXT_VIEW(textview),
+                GTK_TEXT_WINDOW_TEXT),
+            regular_cursor);
+    start_reload_timer(window);
+
+    is_processing = FALSE;
 }
 
 /**
@@ -3540,6 +3668,7 @@ int
 main(int argc, char* argv[]) {
     /* widgets */
     GtkWidget* window = NULL;
+    GtkWidget* mainbox = NULL;
     GtkWidget* vbox = NULL;
     GtkWidget* hbox = NULL;
     GtkWidget* toolbox = NULL;
@@ -3548,12 +3677,14 @@ main(int argc, char* argv[]) {
     GtkWidget* image = NULL;
     GtkWidget* button = NULL;
     GtkWidget* entry = NULL;
+    GtkWidget* statusbar = NULL;
     GtkTooltips* tooltips = NULL;
     GtkWidget* loading_image = NULL;
     GtkWidget* loading_label = NULL;
     GtkAdjustment* vadjust = NULL;
     GtkAccelGroup* accelgroup = NULL;
     GtkTextBuffer* buffer = NULL;
+    guint context_id;
 
     srandom(time(0));
 
@@ -3604,10 +3735,14 @@ main(int argc, char* argv[]) {
     tooltips = gtk_tooltips_new();
     g_object_set_data(G_OBJECT(window), "tooltips", tooltips);
 
+    /* main box */
+    mainbox = gtk_vbox_new(FALSE, 6);
+    gtk_container_add(GTK_CONTAINER(window), mainbox);
+
     /* virtical container box */
     vbox = gtk_vbox_new(FALSE, 6);
     gtk_container_set_border_width(GTK_CONTAINER(vbox), 10);
-    gtk_container_add(GTK_CONTAINER(window), vbox);
+    gtk_container_add(GTK_CONTAINER(mainbox), vbox);
 
     /* title logo */
     image = gtk_image_new_from_pixbuf(gdk_pixbuf_new_from_file(DATA_DIR"/twitter.png", NULL));
@@ -3754,10 +3889,17 @@ main(int argc, char* argv[]) {
             _("post status"),
             _("post status"));
 
+    /* status bar */
+    statusbar = gtk_statusbar_new();
+    g_object_set_data(G_OBJECT(window), "statusbar", statusbar);
+    gtk_box_pack_end(GTK_BOX(mainbox), statusbar, FALSE, TRUE, 0);
+    context_id = gtk_statusbar_get_context_id(GTK_STATUSBAR (statusbar), "API status");
+    g_object_set_data(G_OBJECT(statusbar), "context_id", (gpointer) context_id);
+    gtk_statusbar_push(GTK_STATUSBAR(statusbar), context_id, "");
 
     /* request initial window size */
     gtk_widget_set_size_request(window, 300, 400);
-    gtk_widget_show_all(vbox);
+    gtk_widget_show_all(mainbox);
     gtk_widget_show(window);
 
     if (loading_image) gtk_widget_hide(loading_image);
@@ -3771,6 +3913,7 @@ main(int argc, char* argv[]) {
 
     load_config();
 
+    check_ratelimit(window, statusbar);
     /* {
         PangoFontDescription* pangoFont = NULL;
         pangoFont = pango_font_description_new();
