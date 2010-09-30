@@ -2766,7 +2766,7 @@ search_dialog(GtkWidget* widget, gpointer user_data) {
         last_condition = NULL;
         clean_context(window);
         g_object_set_data(G_OBJECT(window), "mode", g_strdup("search"));
-        g_object_set_data(G_OBJECT(window), "search", word);
+        g_object_set_data(G_OBJECT(window), "search", g_strdup(word));
         search_timeline(window, NULL);
     }
     g_free(word);
