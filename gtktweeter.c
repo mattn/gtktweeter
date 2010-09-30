@@ -1490,7 +1490,7 @@ search_timeline_thread(gpointer data) {
         status = status->children;
         while(status) {
             if (!strcmp("guid", (char*) status->name)) {
-                char* stop = strchr((char*) status->children->content, '/');
+                char* stop = strrchr((char*) status->children->content, '/');
                 if (stop) id = stop + 1;
                 else id = (char*) status->children->content;
             }
@@ -3161,7 +3161,7 @@ swin_vadjust_value_changed(GtkAdjustment* vadjust, gpointer user_data) {
             gchar* page = g_object_get_data(G_OBJECT(window), "page");
             int page_no = atoi(page ? page : "1");
             if (page) g_free(page);
-            g_object_set_data(G_OBJECT(window), "page", g_strdup_printf("%d", page_no));
+            g_object_set_data(G_OBJECT(window), "page", g_strdup_printf("%d", page_no+1));
         }
         if (last_condition) g_free(last_condition);
         last_condition = NULL;
