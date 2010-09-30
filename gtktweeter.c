@@ -66,23 +66,25 @@
 #define APP_TITLE                  "GtkTweeter"
 #define APP_NAME                   "gtktweeter"
 #define APP_VERSION                "0.1.0"
+#define SERVICE_SEARCH_STATUS_URL  "http://search.twitter.com/search.rss"
+#define SERVICE_USER_SHOW_URL      "https://api.twitter.com/1/users/show/%s.xml"
 #define SERVICE_UPDATE_URL         "https://api.twitter.com/1/statuses/update.xml"
 #define SERVICE_RETWEET_URL        "https://api.twitter.com/1/statuses/retweet/%s.xml"
 #define SERVICE_FAVORITE_URL       "https://api.twitter.com/1/favorites/create/%s.xml"
 #define SERVICE_UNFAVORITE_URL     "https://api.twitter.com/1/favorites/destroy/%s.xml"
 #define SERVICE_REPLIES_STATUS_URL "https://api.twitter.com/1/statuses/mentions.xml"
-#define SERVICE_SEARCH_STATUS_URL  "http://search.twitter.com/search.rss"
 #define SERVICE_HOME_STATUS_URL    "https://api.twitter.com/1/statuses/home_timeline.xml"
 #define SERVICE_USER_STATUS_URL    "https://api.twitter.com/1/statuses/user_timeline/%s.xml"
 #define SERVICE_THREAD_STATUS_URL  "https://api.twitter.com/1/statuses/thread_timeline/%s.xml"
+#define SERVICE_ACCESS_TOKEN_URL   "https://api.twitter.com/oauth/access_token"
 #define SERVICE_STATUS_URL         "http://twitter.com/%s/status/%s"
 #define SERVICE_AUTH_URL           "https://twitter.com/oauth/authorize"
 #define SERVICE_REQUEST_TOKEN_URL  "http://twitter.com/oauth/request_token"
-#define SERVICE_ACCESS_TOKEN_URL   "https://api.twitter.com/oauth/access_token"
 #define ACCEPT_LETTER_URL          "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789;/?:@&=+$,-_.!~*'%"
 #define ACCEPT_LETTER_USER         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 #define ACCEPT_LETTER_TAG          "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 #define ACCEPT_LETTER_REPLY        "1234567890"
+#define TOOLTIP_TIMER_SPAN         (1500)
 #define RELOAD_TIMER_SPAN          (60*1000)
 #define REQUEST_TIMEOUT            (10*1000)
 
@@ -113,6 +115,7 @@ static GdkCursor* watch_cursor = NULL;
 static char* last_condition = NULL;
 static int is_processing = FALSE;
 static guint reload_timer = 0;
+static guint tooltip_timer = 0;
 static APPLICATION_INFO application_info = {0};
 
 static void update_timeline(GtkWidget*, gpointer);
@@ -577,6 +580,7 @@ size_t
 memfwrite(char* ptr, size_t size, size_t nmemb, void* stream) {
     MEMFILE* mf = (MEMFILE*) stream;
     int block = size * nmemb;
+    if (!mf) return block; // through
     if (!mf->data)
         mf->data = (char*) malloc(block);
     else
@@ -630,7 +634,12 @@ stop_reload_timer(GtkWidget* window) {
 static void
 start_reload_timer(GtkWidget* window) {
     stop_reload_timer(window);
-    reload_timer = g_timeout_add_full(G_PRIORITY_LOW, RELOAD_TIMER_SPAN, (GSourceFunc) reload_timer_func, window, NULL);
+    reload_timer = g_timeout_add_full(
+            G_PRIORITY_LOW,
+            RELOAD_TIMER_SPAN,
+            (GSourceFunc) reload_timer_func,
+            window,
+            NULL);
 }
 
 static void
@@ -1320,10 +1329,16 @@ open_url(const gchar* url) {
 }
 
 void
+clean_condition() {
+    if (last_condition) g_free(last_condition);
+    last_condition = NULL;
+}
+
+void
 clean_context(GtkWidget* window) {
     const char* prop_names[] = {
         "mode", "user_id", "user_name", "status_id",
-        "last_status_id", "page", "in_reply_to_status_id", "search",
+        "last_status_id", "page", "in_reply_to_status_id", "search", "tooltip_data",
         NULL
     };
     const char** prop_name = prop_names;
@@ -1335,6 +1350,7 @@ clean_context(GtkWidget* window) {
         }
         prop_name++;
     }
+    g_object_set_data(G_OBJECT(window), "tooltip_data", NULL);
 }
 
 /**
@@ -1877,12 +1893,12 @@ update_timeline_thread(gpointer data) {
 
     cond = get_http_header_alloc(head, "ETag");
     if (cond) {
-        if (last_condition) g_free(last_condition);
+        clean_condition();
         last_condition = g_strdup_printf("If-None-Match: %s", cond);
     } else {
         cond = get_http_header_alloc(head, "Last-Modified");
         if (cond) {
-            if (last_condition) g_free(last_condition);
+            clean_condition();
             last_condition = g_strdup_printf("If-None-Match: %s", cond);
         }
     }
@@ -2336,8 +2352,7 @@ retweet_status(GtkWidget* widget, GtkTextTag* tag) {
             g_object_set_data(G_OBJECT(tag), "retweet", g_strdup(status_id+1));
         g_free(status_id);
 
-        if (last_condition) g_free(last_condition);
-        last_condition = NULL;
+        clean_condition();
     }
     if (result) {
         /* show error message */
@@ -2356,6 +2371,252 @@ retweet_status(GtkWidget* widget, GtkTextTag* tag) {
     is_processing = FALSE;
 
     update_timeline(window, NULL);
+}
+
+/**
+ * user profile
+ */
+static gpointer
+user_profile_thread(gpointer data) {
+    CURL* curl = NULL;
+    char* ptr = NULL;
+    char* tmp;
+    char* key;
+    char* query;
+    char* url;
+    char* purl;
+    char* nonce;
+    char auth[21];
+    gpointer result_str = NULL;
+    MEMFILE* mf;
+    char* body;
+    int n;
+    int length;
+
+    xmlDocPtr doc = NULL;
+    xmlNodeSetPtr nodes = NULL;
+    xmlXPathContextPtr ctx = NULL;
+    xmlXPathObjectPtr path = NULL;
+
+    url = g_strdup_printf(SERVICE_USER_SHOW_URL, (gchar*) data);
+
+    nonce = get_nonce_alloc();
+    query = g_strdup_printf(
+        "oauth_consumer_key=%s"
+        "&oauth_nonce=%s"
+        "&oauth_request_method=GET"
+        "&oauth_signature_method=HMAC-SHA1"
+        "&oauth_timestamp=%d"
+        "&oauth_token=%s"
+        "&oauth_version=1.0",
+            application_info.consumer_key,
+            nonce,
+            (int) time(0),
+            application_info.access_token);
+    free(nonce);
+
+    purl = urlencode_alloc(url);
+    ptr = urlencode_alloc(query);
+    tmp = g_strdup_printf("GET&%s&%s", purl, ptr);
+    free(purl);
+    free(ptr);
+    key = g_strdup_printf(
+            "%s&%s",
+            application_info.consumer_secret,
+            application_info.access_token_secret);
+    hmac((unsigned char*) key, strlen(key),
+            (unsigned char*) tmp, strlen(tmp), (unsigned char*) auth);
+    g_free(key);
+    g_free(tmp);
+    tmp = base64encode_alloc(auth, 20);
+    ptr = urlencode_alloc(tmp);
+    tmp = g_strdup_printf("%s&oauth_signature=%s", query, ptr);
+    free(ptr);
+    g_free(query);
+    query = tmp;
+    purl = g_strdup_printf("%s?%s", url, query);
+    g_free(url);
+    url = purl;
+
+    mf = memfopen();
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, mf);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+    curl_easy_perform(curl);
+
+    g_free(query);
+    g_free(url);
+    body = memfstrdup(mf);
+    memfclose(mf);
+
+    doc = body ? xmlParseDoc((xmlChar*) body) : NULL;
+    if (!doc) goto leave;
+    ctx = xmlXPathNewContext(doc);
+    if (!ctx) goto leave;
+    path = xmlXPathEvalExpression((xmlChar*)"/user", ctx);
+    if (!path) goto leave;
+    nodes = path->nodesetval;
+
+    length = xmlXPathNodeSetGetLength(nodes);
+
+    result_str = g_strdup("");
+
+    /* make timeline */
+    for(n = 0; n < length; n++) {
+        xmlNodePtr info = nodes->nodeTab[n];
+        if (info->type != XML_ATTRIBUTE_NODE && info->type != XML_ELEMENT_NODE && info->type != XML_CDATA_SECTION_NODE) continue;
+        info = info->children;
+        while(info) {
+            // <protected>
+            // <friends_count>
+            // <followers_count>
+            if (!strcmp("name", (char*) info->name)) {
+                tmp = g_strconcat(result_str, "user name:", XML_CONTENT(info), "\n", NULL);
+                g_free(result_str);
+                result_str = tmp;
+            }
+            if (!strcmp("screen_name", (char*) info->name)) {
+                tmp = g_strconcat(result_str, "screen name:", XML_CONTENT(info), "\n", NULL);
+                g_free(result_str);
+                result_str = tmp;
+            }
+            if (!strcmp("description", (char*) info->name)) {
+                tmp = g_strconcat(result_str, "description:\n", XML_CONTENT(info), "\n\n", NULL);
+                g_free(result_str);
+                result_str = tmp;
+            }
+            if (!strcmp("location", (char*) info->name)) {
+                tmp = g_strconcat(result_str, "location:", XML_CONTENT(info), "\n", NULL);
+                g_free(result_str);
+                result_str = tmp;
+            }
+            if (!strcmp("url", (char*) info->name)) {
+                tmp = g_strconcat(result_str, "URL:", XML_CONTENT(info), "\n", NULL);
+                g_free(result_str);
+                result_str = tmp;
+            }
+            info = info->next;
+        }
+    }
+
+leave:
+    if (body) free(body);
+    if (path) xmlXPathFreeObject(path);
+    if (ctx) xmlXPathFreeContext(ctx);
+    if (doc) xmlFreeDoc(doc);
+    return result_str;
+}
+
+static void
+user_profile(GtkWidget* widget, gchar* url) {
+    gpointer result;
+    GtkWidget* window = (GtkWidget*) gtk_widget_get_toplevel(widget);
+    GtkWidget* textview = (GtkWidget*) g_object_get_data(G_OBJECT(window), "textview");
+    GtkWidget* toolbox = (GtkWidget*) g_object_get_data(G_OBJECT(window), "toolbox");
+    GtkTooltips* tooltips = (GtkTooltips*) g_object_get_data(G_OBJECT(window), "tooltips");
+
+    is_processing = TRUE;
+
+    /* disable toolbox */
+    gtk_widget_set_sensitive(toolbox, FALSE);
+    /* set watch cursor at textview */
+    gdk_window_set_cursor(
+            gtk_text_view_get_window(
+                GTK_TEXT_VIEW(textview),
+                GTK_TEXT_WINDOW_TEXT),
+            watch_cursor);
+    result = process_func(user_profile_thread, url, window, _("getting profile..."));
+    if (result) {
+        gtk_tooltips_set_tip(
+                GTK_TOOLTIPS(tooltips),
+                textview,
+                result, url);
+        g_free(result);
+    }
+    /* enable toolbox */
+    gtk_widget_set_sensitive(toolbox, TRUE);
+    /* set regular cursor at textview */
+    gdk_window_set_cursor(
+            gtk_text_view_get_window(
+                GTK_TEXT_VIEW(textview),
+                GTK_TEXT_WINDOW_TEXT),
+            regular_cursor);
+
+    is_processing = FALSE;
+}
+
+/**
+ * expand short url
+ */
+static gpointer
+expand_short_url_thread(gpointer data) {
+    CURL* curl = NULL;
+    gpointer result_str = NULL;
+    MEMFILE* mf;
+    char* head;
+
+    mf = memfopen();
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 0);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+    curl_easy_setopt(curl, CURLOPT_URL, (gchar*) data);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, memfwrite);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, mf);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0);
+    curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+
+    head = memfstrdup(mf);
+    memfclose(mf);
+    result_str = get_http_header_alloc(head, "Location");
+    free(head);
+
+    return result_str;
+}
+
+static void
+expand_short_url(GtkWidget* widget, gchar* url) {
+    gpointer result;
+    GtkWidget* window = (GtkWidget*) gtk_widget_get_toplevel(widget);
+    GtkWidget* textview = (GtkWidget*) g_object_get_data(G_OBJECT(window), "textview");
+    GtkWidget* toolbox = (GtkWidget*) g_object_get_data(G_OBJECT(window), "toolbox");
+    GtkTooltips* tooltips = (GtkTooltips*) g_object_get_data(G_OBJECT(window), "tooltips");
+
+    is_processing = TRUE;
+
+    /* disable toolbox */
+    gtk_widget_set_sensitive(toolbox, FALSE);
+    /* set watch cursor at textview */
+    gdk_window_set_cursor(
+            gtk_text_view_get_window(
+                GTK_TEXT_VIEW(textview),
+                GTK_TEXT_WINDOW_TEXT),
+            watch_cursor);
+    result = process_func(expand_short_url_thread, url, window, _("expanding URL..."));
+    if (result) {
+        gtk_tooltips_set_tip(
+                GTK_TOOLTIPS(tooltips),
+                textview,
+                result, url);
+        g_free(result);
+    }
+    /* enable toolbox */
+    gtk_widget_set_sensitive(toolbox, TRUE);
+    /* set regular cursor at textview */
+    gdk_window_set_cursor(
+            gtk_text_view_get_window(
+                GTK_TEXT_VIEW(textview),
+                GTK_TEXT_WINDOW_TEXT),
+            regular_cursor);
+
+    is_processing = FALSE;
 }
 
 /**
@@ -2496,8 +2757,7 @@ favorite_status(GtkWidget* widget, GtkTextTag* tag) {
             g_object_set_data(G_OBJECT(tag), "favorite", g_strdup(status_id+1));
         g_free(status_id);
 
-        if (last_condition) g_free(last_condition);
-        last_condition = NULL;
+        clean_condition();
     }
     if (result) {
         /* show error message */
@@ -2671,8 +2931,7 @@ post_status(GtkWidget* widget, gpointer user_data) {
             watch_cursor);
     result = process_func(post_status_thread, window, window, _("posting status..."));
     if (!result) {
-        if (last_condition) g_free(last_condition);
-        last_condition = NULL;
+        clean_condition();
         clean_context(window);
         result = process_func(update_timeline_thread, window, window, _("updating statuses..."));
     }
@@ -2700,8 +2959,7 @@ static void
 on_reload_clicked(GtkWidget* widget, gpointer user_data) {
     GtkWidget* window = gtk_widget_get_toplevel(widget);
     gchar* mode = g_object_get_data(G_OBJECT(window), "mode");
-    if (last_condition) g_free(last_condition);
-    last_condition = NULL;
+    clean_condition();
     if (mode && !strcmp(mode, "search")) {
         search_timeline(window, NULL);
     } else {
@@ -2777,8 +3035,7 @@ search_dialog(GtkWidget* widget, gpointer user_data) {
     gtk_widget_destroy(dialog);
 
     if (ret == GTK_RESPONSE_OK) {
-        if (last_condition) g_free(last_condition);
-        last_condition = NULL;
+        clean_condition();
         clean_context(window);
         g_object_set_data(G_OBJECT(window), "mode", g_strdup("search"));
         g_object_set_data(G_OBJECT(window), "search", g_strdup(word));
@@ -2923,22 +3180,42 @@ setup_dialog(GtkWidget* window) {
     return ret;
 }
 
+static guint
+tooltip_timer_func(gpointer data) {
+    GtkWidget* window = (GtkWidget*) data;
+    gchar* tooltip_data;
+
+    tooltip_data = g_object_get_data(G_OBJECT(window), "tooltip_data");
+    if (!tooltip_data) return 0;
+
+    gdk_threads_enter();
+    if (!strncmp(tooltip_data, "url:", 4)) {
+        expand_short_url(window, tooltip_data+4);
+    }
+    if (!strncmp(tooltip_data, "user:", 5)) {
+        user_profile(window, tooltip_data+5);
+    }
+    gdk_threads_leave();
+    return 0;
+}
+
 static void
 textview_change_cursor(GtkWidget* textview, gint x, gint y) {
     static gboolean hovering_over_link = FALSE;
+    GtkWidget* window = gtk_widget_get_toplevel(textview);
     GSList* tags = NULL;
-    GtkWidget* window;
     GtkTextBuffer* buffer;
     GtkTextIter iter;
     GtkTooltips* tooltips = NULL;
     gboolean hovering = FALSE;
+    gchar* user_id = NULL;
+    gchar* short_url = NULL;
     int len, n;
 
     if (is_processing) {
         return;
     }
 
-    window = gtk_widget_get_toplevel(textview);
     buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textview));
     gtk_text_view_get_iter_at_location(GTK_TEXT_VIEW(textview), &iter, x, y);
     tooltips = (GtkTooltips*) g_object_get_data(G_OBJECT(window), "tooltips");
@@ -2949,9 +3226,19 @@ textview_change_cursor(GtkWidget* textview, gint x, gint y) {
         for(n = 0; n < len; n++) {
             GtkTextTag* tag = (GtkTextTag*) g_slist_nth_data(tags, n);
             if (tag) {
-                if (g_object_get_data(G_OBJECT(tag), "url")
-                    || g_object_get_data(G_OBJECT(tag), "user_id")
-                    || g_object_get_data(G_OBJECT(tag), "status_url")
+                if (g_object_get_data(G_OBJECT(tag), "url")) {
+                    hovering = TRUE;
+                    short_url = g_object_get_data(G_OBJECT(tag), "url");
+                    g_object_set_data(G_OBJECT(window), "tooltip_data", g_strdup_printf("url:%s", short_url));
+                    break;
+                }
+                if (g_object_get_data(G_OBJECT(tag), "user_id")) {
+                    hovering = TRUE;
+                    user_id = g_object_get_data(G_OBJECT(tag), "user_id");
+                    g_object_set_data(G_OBJECT(window), "tooltip_data", g_strdup_printf("user:%s", user_id));
+                    break;
+                }
+                if (   g_object_get_data(G_OBJECT(tag), "status_url")
                     || g_object_get_data(G_OBJECT(tag), "retweet")
                     || g_object_get_data(G_OBJECT(tag), "reply")
                     || g_object_get_data(G_OBJECT(tag), "favorite")
@@ -2970,16 +3257,25 @@ textview_change_cursor(GtkWidget* textview, gint x, gint y) {
                     GTK_TEXT_VIEW(textview),
                     GTK_TEXT_WINDOW_TEXT),
                 hovering_over_link ? hand_cursor : regular_cursor);
-        /* TODO: tooltips for user icon.
+
         if (hovering_over_link) {
-            char* message = NULL;
-            message = _("what are you doing?"),
+            tooltip_timer = g_timeout_add_full(
+                    G_PRIORITY_LOW,
+                    TOOLTIP_TIMER_SPAN,
+                    (GSourceFunc) tooltip_timer_func,
+                    window,
+                    NULL);
+        } else {
+            gchar* old_data = g_object_get_data(G_OBJECT(window), "tooltip_data");
+            if (old_data) g_free(old_data);
+            g_object_set_data(G_OBJECT(window), "tooltip_data", NULL);
+            g_source_remove(tooltip_timer);
+            tooltip_timer = 0;
             gtk_tooltips_set_tip(
                     GTK_TOOLTIPS(tooltips),
                     textview,
-                    message, message);
+                    "", "");
         }
-        */
     }
 }
 
@@ -3079,8 +3375,7 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
                 tag_data = g_object_get_data(G_OBJECT(tag), "tag_name");
                 if (tag_data) {
                     gchar* word = g_strdup(tag_data);
-                    if (last_condition) g_free(last_condition);
-                    last_condition = NULL;
+                    clean_condition();
                     clean_context(window);
                     g_object_set_data(G_OBJECT(window), "mode", g_strdup("search"));
                     g_object_set_data(G_OBJECT(window), "search", word);
@@ -3172,8 +3467,7 @@ swin_vadjust_value_changed(GtkAdjustment* vadjust, gpointer user_data) {
             if (page) g_free(page);
             g_object_set_data(G_OBJECT(window), "page", g_strdup_printf("%d", page_no+1));
         }
-        if (last_condition) g_free(last_condition);
-        last_condition = NULL;
+        clean_condition();
         if (mode && !strcmp(mode, "search")) {
             search_timeline(window, NULL);
         } else {
