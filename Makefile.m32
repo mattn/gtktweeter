@@ -4,7 +4,7 @@ all : gtktweeter.exe
 
 gtktweeter.exe : gtktweeter.o gtktweeter.res
 	gcc -o gtktweeter.exe \
-		-mconsole \
+		-mwindows \
 		-Lc:/gtk/lib \
 		gtktweeter.o \
 		gtktweeter.res \
