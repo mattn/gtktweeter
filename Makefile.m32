@@ -2,6 +2,16 @@ CFLAGS=
 
 all : gtktweeter.exe
 
+console : gtktweeter.o gtktweeter.res
+	gcc -o gtktweeter.exe \
+		-mconsole \
+		-Lc:/gtk/lib \
+		gtktweeter.o \
+		gtktweeter.res \
+        -Lc:/gtk/lib -lgtk-win32-2.0 -lgdk-win32-2.0 -latk-1.0 -lgio-2.0 -lgdk_pixbuf-2.0 -lpangowin32-1.0 -lgdi32 -lpangocairo-1.0 -lpango-1.0 -lcairo -lgobject-2.0 -lgmodule-2.0 -lxml2 -lgthread-2.0 -lglib-2.0 -lintl \
+		-lcurldll \
+		-lshell32
+
 gtktweeter.exe : gtktweeter.o gtktweeter.res
 	gcc -o gtktweeter.exe \
 		-mwindows \
