@@ -2610,6 +2610,15 @@ post_status_thread(gpointer data) {
     res = curl_easy_perform(curl);
     if (res == CURLE_OK)
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
+    if (http_status == 417) {
+        struct curl_slist* headers = NULL;
+        headers = curl_slist_append(headers, "Expect: ");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        res = curl_easy_perform(curl);
+        curl_slist_free_all(headers);
+        if (res == CURLE_OK)
+            curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
+    }
 
     curl_easy_cleanup(curl);
     g_free(query);
@@ -3428,6 +3437,7 @@ main(int argc, char* argv[]) {
     entry = gtk_entry_new();
     g_object_set_data(G_OBJECT(window), "entry", entry);
     g_signal_connect(G_OBJECT(entry), "activate", G_CALLBACK(on_entry_activate), window);
+    gtk_entry_set_max_length(GTK_ENTRY(entry), 140);
     gtk_box_pack_start(GTK_BOX(hbox), entry, TRUE, TRUE, 0);
     /* gtk_widget_set_size_request(entry, -1, 50); */
     gtk_tooltips_set_tip(
