@@ -108,6 +108,7 @@ typedef struct _APPLICATION_INFO {
     char* consumer_secret;
     char* access_token;
     char* access_token_secret;
+    char* font;
 } APPLICATION_INFO;
 
 static GdkCursor* hand_cursor = NULL;
@@ -3634,6 +3635,8 @@ load_config() {
             application_info.access_token = strdup(line+13);
         if (!strncmp(line, "access_token_secret=", 20))
             application_info.access_token_secret = strdup(line+20);
+        if (!strncmp(line, "font=", 5))
+            application_info.font = strdup(line+5);
     }
     fclose(fp);
     return 0;
@@ -3656,6 +3659,7 @@ save_config() {
     fprintf(fp, "consumer_secret=%s\n", SAFE_STRING(application_info.consumer_secret));
     fprintf(fp, "access_token=%s\n", SAFE_STRING(application_info.access_token));
     fprintf(fp, "access_token_secret=%s\n", SAFE_STRING(application_info.access_token_secret));
+    fprintf(fp, "font=%s\n", SAFE_STRING(application_info.font));
 #undef SAFE_STRING
     fclose(fp);
     return 0;
@@ -3913,17 +3917,18 @@ main(int argc, char* argv[]) {
 
     load_config();
 
-    check_ratelimit(window, statusbar);
-    /* {
+    if (application_info.font && strlen(application_info.font)) {
         PangoFontDescription* pangoFont = NULL;
         pangoFont = pango_font_description_new();
-        pango_font_description_set_family(pangoFont, "meiryo");
+        pango_font_description_set_family(pangoFont, application_info.font);
         gtk_widget_modify_font(textview, pangoFont);
         pango_font_description_free(pangoFont);
-    } */
+    }
 
+    check_ratelimit(window, statusbar);
 
     update_timeline(window, NULL);
+
     gtk_main();
 
     gdk_threads_leave();
