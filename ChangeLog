@@ -8,6 +8,8 @@
 	human readable date/time.
 	add button to replies.
 	add button to search.
+	add support to show user profile.
+	add support to expand short URL.
 * version 0.0.9
 	changed behaviour to show user's status. not user's friends timeline.
 	changed loading animation. before was used dialog interface. but it was un-usuable.
