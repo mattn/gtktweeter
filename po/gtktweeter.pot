@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2010-09-09 19:16+0900\n"
+"POT-Creation-Date: 2010-09-30 11:38+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,44 +16,75 @@ msgstr ""
 "Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: gtktweeter.c:1225 gtktweeter.c:1253 gtktweeter.c:1260 gtktweeter.c:1265
-#: gtktweeter.c:1567
+#: ../gtktweeter.c:1423 ../gtktweeter.c:1434 ../gtktweeter.c:1441
+#: ../gtktweeter.c:1446 ../gtktweeter.c:1873 ../gtktweeter.c:1897
+#: ../gtktweeter.c:1904 ../gtktweeter.c:1909 ../gtktweeter.c:2295
+#: ../gtktweeter.c:2455 ../gtktweeter.c:2636
 msgid "unknown server response"
 msgstr ""
 
-#: gtktweeter.c:1433 gtktweeter.c:1606
+#: ../gtktweeter.c:1693
+msgid "searching statuses..."
+msgstr ""
+
+#: ../gtktweeter.c:2167 ../gtktweeter.c:2677
 msgid "updating statuses..."
 msgstr ""
 
-#: gtktweeter.c:1603
+#: ../gtktweeter.c:2325
+msgid "retweeting status..."
+msgstr ""
+
+#: ../gtktweeter.c:2485
+msgid "favoriting status..."
+msgstr ""
+
+#: ../gtktweeter.c:2672
 msgid "posting status..."
 msgstr ""
 
-#: gtktweeter.c:1663
+#: ../gtktweeter.c:2754
+msgid " Search"
+msgstr ""
+
+#. word
+#: ../gtktweeter.c:2757
+msgid "Search _Word:"
+msgstr ""
+
+#: ../gtktweeter.c:2813
 msgid " Setup"
 msgstr ""
 
 #. pin
-#: gtktweeter.c:1666
+#: ../gtktweeter.c:2816
 msgid "_PIN Code:"
 msgstr ""
 
-#: gtktweeter.c:2216 gtktweeter.c:2217
+#: ../gtktweeter.c:3365 ../gtktweeter.c:3366
 msgid "go home"
 msgstr ""
 
-#: gtktweeter.c:2228 gtktweeter.c:2229
+#: ../gtktweeter.c:3378 ../gtktweeter.c:3379
+msgid "replies"
+msgstr ""
+
+#: ../gtktweeter.c:3391 ../gtktweeter.c:3392
 msgid "reload statuses"
 msgstr ""
 
-#: gtktweeter.c:2240 gtktweeter.c:2241
+#: ../gtktweeter.c:3404 ../gtktweeter.c:3405
+msgid "search word"
+msgstr ""
+
+#: ../gtktweeter.c:3417 ../gtktweeter.c:3418
 msgid "show config dialog"
 msgstr ""
 
-#: gtktweeter.c:2268 gtktweeter.c:2269
+#: ../gtktweeter.c:3446 ../gtktweeter.c:3447
 msgid "what are you doing?"
 msgstr ""
 
-#: gtktweeter.c:2280 gtktweeter.c:2281
+#: ../gtktweeter.c:3460 ../gtktweeter.c:3461
 msgid "post status"
 msgstr ""
