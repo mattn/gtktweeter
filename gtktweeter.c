@@ -3446,7 +3446,7 @@ main(int argc, char* argv[]) {
             _("what are you doing?"),
             _("what are you doing?"));
     g_object_set(gtk_widget_get_settings(entry), "gtk-entry-select-on-focus", FALSE, NULL);
-    gtk_widget_add_accelerator(entry, "activate", accelgroup, GDK_l, GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE); 
+    gtk_widget_add_accelerator(entry, "grab-focus", accelgroup, GDK_l, GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE); 
 
     /* post button */
     button = gtk_button_new();
