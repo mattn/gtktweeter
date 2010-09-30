@@ -29,16 +29,18 @@
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
 #include <ctype.h>
-#include <sys/io.h>
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
 #include <curl/curl.h>
 #include <memory.h>
 #include <libintl.h>
+#ifdef _WIN32
+# include <io.h>
+#endif
 
 #ifdef _LIBINTL_H
-#include <locale.h>
+# include <locale.h>
 # define _(x) gettext(x)
 #else
 # define _(x) x
@@ -114,9 +116,9 @@ static guint reload_timer = 0;
 static APPLICATION_INFO application_info = {0};
 
 static void update_timeline(GtkWidget*, gpointer);
-static void start_reload_timer(GtkWidget* toplevel);
-static void stop_reload_timer(GtkWidget* toplevel);
-static void reset_reload_timer(GtkWidget* toplevel);
+static void start_reload_timer(GtkWidget* window);
+static void stop_reload_timer(GtkWidget* window);
+static void reset_reload_timer(GtkWidget* window);
 
 static gboolean setup_dialog(GtkWidget* window);
 static int load_config();
@@ -618,7 +620,7 @@ reload_timer_func(gpointer data) {
 }
 
 static void
-stop_reload_timer(GtkWidget* toplevel) {
+stop_reload_timer(GtkWidget* window) {
     if (reload_timer != 0) {
         g_source_remove(reload_timer);
         reload_timer = 0;
@@ -626,15 +628,15 @@ stop_reload_timer(GtkWidget* toplevel) {
 }
 
 static void
-start_reload_timer(GtkWidget* toplevel) {
-    stop_reload_timer(toplevel);
-    reload_timer = g_timeout_add_full(G_PRIORITY_LOW, RELOAD_TIMER_SPAN, (GSourceFunc) reload_timer_func, toplevel, NULL);
+start_reload_timer(GtkWidget* window) {
+    stop_reload_timer(window);
+    reload_timer = g_timeout_add_full(G_PRIORITY_LOW, RELOAD_TIMER_SPAN, (GSourceFunc) reload_timer_func, window, NULL);
 }
 
 static void
-reset_reload_timer(GtkWidget* toplevel) {
-    stop_reload_timer(toplevel);
-    start_reload_timer(toplevel);
+reset_reload_timer(GtkWidget* window) {
+    stop_reload_timer(window);
+    start_reload_timer(window);
 }
 
 /**
@@ -2709,6 +2711,68 @@ on_entry_activate(GtkWidget* widget, gpointer user_data) {
 }
 
 /**
+ * search box
+ */
+static void
+on_search_word_activate(GtkWidget* widget, gpointer user_data) {
+    GtkDialog* dialog = (GtkDialog*) user_data;
+    gtk_dialog_response(dialog, GTK_RESPONSE_OK);
+}
+
+static void
+search_dialog(GtkWidget* widget, gpointer user_data) {
+    GtkWidget* window = gtk_widget_get_toplevel(widget);
+    GtkWidget* dialog = NULL;
+    GtkWidget* label = NULL;
+    GtkWidget* entry = NULL;
+    gchar* word = NULL;
+    gint ret;
+
+    /* login dialog */
+    dialog = gtk_dialog_new();
+    gtk_dialog_add_buttons(GTK_DIALOG(dialog),
+            GTK_STOCK_OK, GTK_RESPONSE_OK,
+            GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+            NULL);
+    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_OK);
+
+    gtk_window_set_title(GTK_WINDOW(dialog), _(APP_TITLE" Search"));
+
+    /* word */
+    label = gtk_label_new(_("Search _Word:"));
+    gtk_label_set_use_underline(GTK_LABEL(label), TRUE);
+    gtk_misc_set_alignment(GTK_MISC(label), 0.0f, 0.5f);
+    gtk_box_pack_start (GTK_BOX (GTK_DIALOG(dialog)->vbox), label, TRUE, TRUE, 0);
+
+    entry = gtk_entry_new();
+    gtk_label_set_mnemonic_widget(GTK_LABEL(label), entry);
+    g_signal_connect(G_OBJECT(entry), "activate", G_CALLBACK(on_search_word_activate), dialog);
+    gtk_box_pack_start (GTK_BOX (GTK_DIALOG(dialog)->vbox), entry, TRUE, TRUE, 0);
+
+    /* show modal dialog */
+    gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
+    gtk_window_set_transient_for(
+            GTK_WINDOW(dialog),
+            GTK_WINDOW(window));
+    gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
+    gtk_widget_show_all(dialog);
+
+    ret = gtk_dialog_run(GTK_DIALOG(dialog));
+    word = g_strdup(gtk_entry_get_text(GTK_ENTRY(entry)));
+    gtk_widget_destroy(dialog);
+
+    if (ret == GTK_RESPONSE_OK) {
+        if (last_condition) g_free(last_condition);
+        last_condition = NULL;
+        clean_context(window);
+        g_object_set_data(G_OBJECT(window), "mode", g_strdup("search"));
+        g_object_set_data(G_OBJECT(window), "search", word);
+        search_timeline(window, NULL);
+    }
+    g_free(word);
+}
+
+/**
  * login dialog func
  */
 static gboolean
@@ -2848,7 +2912,7 @@ static void
 textview_change_cursor(GtkWidget* textview, gint x, gint y) {
     static gboolean hovering_over_link = FALSE;
     GSList* tags = NULL;
-    GtkWidget* toplevel;
+    GtkWidget* window;
     GtkTextBuffer* buffer;
     GtkTextIter iter;
     GtkTooltips* tooltips = NULL;
@@ -2859,10 +2923,10 @@ textview_change_cursor(GtkWidget* textview, gint x, gint y) {
         return;
     }
 
-    toplevel = gtk_widget_get_toplevel(textview);
+    window = gtk_widget_get_toplevel(textview);
     buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textview));
     gtk_text_view_get_iter_at_location(GTK_TEXT_VIEW(textview), &iter, x, y);
-    tooltips = (GtkTooltips*) g_object_get_data(G_OBJECT(toplevel), "tooltips");
+    tooltips = (GtkTooltips*) g_object_get_data(G_OBJECT(window), "tooltips");
 
     tags = gtk_text_iter_get_tags(&iter);
     if (tags) {
@@ -3000,6 +3064,8 @@ textview_event_after(GtkWidget* textview, GdkEvent* ev) {
                 tag_data = g_object_get_data(G_OBJECT(tag), "tag_name");
                 if (tag_data) {
                     gchar* word = g_strdup(tag_data);
+                    if (last_condition) g_free(last_condition);
+                    last_condition = NULL;
                     clean_context(window);
                     g_object_set_data(G_OBJECT(window), "mode", g_strdup("search"));
                     g_object_set_data(G_OBJECT(window), "search", word);
@@ -3177,7 +3243,7 @@ main(int argc, char* argv[]) {
     GtkWidget* loading_image = NULL;
     GtkWidget* loading_label = NULL;
     GtkAdjustment* vadjust = NULL;
-
+    GtkAccelGroup* accelgroup = NULL;
     GtkTextBuffer* buffer = NULL;
 
     srandom(time(0));
@@ -3215,6 +3281,10 @@ main(int argc, char* argv[]) {
     gtk_window_set_title(GTK_WINDOW(window), APP_TITLE);
     g_signal_connect(G_OBJECT(window), "delete-event", gtk_main_quit, window);
     gtk_window_set_icon_from_file(GTK_WINDOW(window), DATA_DIR"/logo.png", NULL);
+
+    /* accel group */
+    accelgroup = gtk_accel_group_new();
+    gtk_window_add_accel_group(GTK_WINDOW(window), accelgroup);
 
     /* link cursor */
     hand_cursor = gdk_cursor_new(GDK_HAND2);
@@ -3279,6 +3349,7 @@ main(int argc, char* argv[]) {
             button,
             _("go home"),
             _("go home"));
+    gtk_widget_add_accelerator(button, "activate", accelgroup, GDK_h, GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE); 
 
     /* replies button */
     button = gtk_button_new();
@@ -3291,6 +3362,7 @@ main(int argc, char* argv[]) {
             button,
             _("replies"),
             _("replies"));
+    gtk_widget_add_accelerator(button, "activate", accelgroup, GDK_r, GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE); 
 
     /* reload button */
     button = gtk_button_new();
@@ -3303,6 +3375,20 @@ main(int argc, char* argv[]) {
             button,
             _("reload statuses"),
             _("reload statuses"));
+    gtk_widget_add_accelerator(button, "activate", accelgroup, GDK_g, GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE); 
+
+    /* search button */
+    button = gtk_button_new();
+    g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(search_dialog), window);
+    image = gtk_image_new_from_pixbuf(gdk_pixbuf_new_from_file(DATA_DIR"/search.png", NULL));
+    gtk_container_add(GTK_CONTAINER(button), image);
+    gtk_box_pack_start(GTK_BOX(hbox), button, FALSE, TRUE, 0);
+    gtk_tooltips_set_tip(
+            GTK_TOOLTIPS(tooltips),
+            button,
+            _("search word"),
+            _("search word"));
+    gtk_widget_add_accelerator(button, "activate", accelgroup, GDK_f, GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE); 
 
     /* config button */
     button = gtk_button_new();
@@ -3344,6 +3430,7 @@ main(int argc, char* argv[]) {
             _("what are you doing?"),
             _("what are you doing?"));
     g_object_set(gtk_widget_get_settings(entry), "gtk-entry-select-on-focus", FALSE, NULL);
+    gtk_widget_add_accelerator(entry, "activate", accelgroup, GDK_l, GDK_CONTROL_MASK, GTK_ACCEL_VISIBLE); 
 
     /* post button */
     button = gtk_button_new();
@@ -3356,6 +3443,7 @@ main(int argc, char* argv[]) {
             button,
             _("post status"),
             _("post status"));
+
 
     /* request initial window size */
     gtk_widget_set_size_request(window, 300, 400);
