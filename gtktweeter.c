@@ -762,12 +762,18 @@ static GdkPixbuf* url2pixbuf(const char* url, GError** error) {
 #ifdef _WIN32
             if (ctype &&
                     (!strcmp(ctype, "image/jpeg") || !strcmp(ctype, "image/gif"))) {
-                gchar* fn = NULL;
-                gint f = g_file_open_tmp(NULL, &fn, NULL);
-                write(f, body, size);
-                close(f);
-                pixbuf = gdk_pixbuf_new_from_file(fn, NULL);
-                g_unlink(fn);
+                char temp_path[MAX_PATH];
+                char temp_filename[MAX_PATH];
+                FILE* fp;
+                GetTempPath(sizeof(temp_path), temp_path);
+                GetTempFileName(temp_path, "gtktweeter-", 0, temp_filename);
+                fp = fopen(temp_filename, "wb");
+                if (fp) {
+                    fwrite(body, size, 1, fp);
+                    fclose(fp);
+                }
+                pixbuf = gdk_pixbuf_new_from_file(temp_filename, NULL);
+                DeleteFile(temp_filename);
             } else
 #endif
             {
