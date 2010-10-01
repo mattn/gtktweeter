@@ -1403,16 +1403,21 @@ tweettime_to_time(struct tm* tm, char* s) {
     return mktime(tm);
 }
 
-void
+int
 open_url(const gchar* url) {
-#ifdef _WIN32
-    ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOW);
-#else
     int r = 0;
+#if defined(_WIN32)
+    r = ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOW);
+#elif defined(MACOSX)
+    gchar* command = g_strdup_printf("open '%s'", url);
+    g_spawn_command_line_async(command, NULL);
+    g_free(command);
+#else
     gchar* command = g_strdup_printf("xdg-open '%s'", url);
     g_spawn_command_line_async(command, NULL);
     g_free(command);
 #endif
+    return r;
 }
 
 void
