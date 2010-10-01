@@ -88,6 +88,7 @@
 #define TOOLTIP_TIMER_SPAN         (1500)
 #define RELOAD_TIMER_SPAN          (60*1000)
 #define REQUEST_TIMEOUT            (10)
+#define SHORTURL_API_URL           "http://is.gd/api.php?longurl=%s"
 
 #define XML_CONTENT(x) (x->children ? (char*) x->children->content : NULL)
 
@@ -721,101 +722,85 @@ get_http_header_alloc(const char* ptr, const char* key) {
     return NULL;
 }
 
-/**
- * loading icon
- */
-static GdkPixbuf* url2pixbuf(const char* url, GError** error) {
-    GdkPixbuf* pixbuf = NULL;
-    GdkPixbufLoader* loader = NULL;
-    GError* _error = NULL;
+static char*
+get_short_url_alloc(const char* url) {
+    gchar* purl;
+    CURL* curl;
+    MEMFILE* mf; // mem file
+    char* ret = NULL;
 
-    if (!strncmp(url, "file:///", 8) || g_file_test(url, G_FILE_TEST_EXISTS)) {
-        gchar* newurl = g_filename_from_uri(url, NULL, NULL);
-        pixbuf = gdk_pixbuf_new_from_file(newurl ? newurl : url, &_error);
-    } else {
-        CURL* curl = NULL;
-        MEMFILE* mbody;
-        MEMFILE* mhead;
-        char* head;
-        char* body;
-        unsigned long size;
-        CURLcode res = CURLE_FAILED_INIT;
+    purl = g_strdup_printf(SHORTURL_API_URL, url);
 
-        curl = curl_easy_init();
-        if (!curl) return NULL;
+    mf = memfopen();
+    curl = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_URL, purl);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, mf);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+    curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
 
-        mbody = memfopen();
-        mhead = memfopen();
+    g_free(purl);
+    ret = memfstrdup(mf);
+    memfclose(mf);
 
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
-        curl_easy_setopt(curl, CURLOPT_URL, url);
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, mbody);
-        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, memfwrite);
-        curl_easy_setopt(curl, CURLOPT_HEADERDATA, mhead);
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
-        res = curl_easy_perform(curl);
-        curl_easy_cleanup(curl);
+    return ret;
+}
 
-        head = memfstrdup(mhead);
-        memfclose(mhead);
-        body = memfstrdup(mbody);
-        size = mbody->size;
-        memfclose(mbody);
+static char*
+get_short_status_alloc(const char* status) {
+    const char* ptr = status;
+    const char* last = ptr;
+    char* ret = NULL;
+    int len = 0;
+    while(*ptr) {
+        if (!strncmp(ptr, "http://", 7) || !strncmp(ptr, "ftp://", 6)) {
+            char* link;
+            char* short_url;
+            const char* tmp;
 
-        if (res == CURLE_OK) {
-            char* ctype;
-            char* csize;
-            ctype = get_http_header_alloc(head, "Content-Type");
-            csize = get_http_header_alloc(head, "Content-Length");
-
-#ifdef _WIN32
-            if (ctype &&
-                    (!strcmp(ctype, "image/jpeg") || !strcmp(ctype, "image/gif"))) {
-                char temp_path[MAX_PATH];
-                char temp_filename[MAX_PATH];
-                FILE* fp;
-                GetTempPath(sizeof(temp_path), temp_path);
-                GetTempFileName(temp_path, "gtktweeter-", 0, temp_filename);
-                fp = fopen(temp_filename, "wb");
-                if (fp) {
-                    fwrite(body, size, 1, fp);
-                    fclose(fp);
-                }
-                pixbuf = gdk_pixbuf_new_from_file(temp_filename, NULL);
-                DeleteFile(temp_filename);
-            } else
-#endif
-            {
-                if (ctype)
-                    loader =
-                        (GdkPixbufLoader*) gdk_pixbuf_loader_new_with_mime_type(ctype,
-                                error);
-                if (csize)
-                    size = atol(csize);
-                if (!loader) loader = gdk_pixbuf_loader_new();
-                if (body && gdk_pixbuf_loader_write(loader, (const guchar*) body,
-                            size, &_error)) {
-                    pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
-                }
+            if (last != ptr) {
+                len += (ptr-last);
+                if (!ret) {
+                    ret = malloc(len+1);
+                    memset(ret, 0, len+1);
+                } else ret = realloc(ret, len+1);
+                strncat(ret, last, ptr-last);
             }
-            if (ctype) free(ctype);
-            if (csize) free(csize);
-            if (loader) gdk_pixbuf_loader_close(loader, NULL);
-        } else {
-            _error = g_error_new_literal(G_FILE_ERROR, res,
-                    curl_easy_strerror(res));
-        }
 
-        free(head);
-        free(body);
+            tmp = ptr;
+            while(*tmp && strchr(ACCEPT_LETTER_URL, *tmp)) tmp++;
+            link = malloc(tmp-ptr+1);
+            memset(link, 0, tmp-ptr+1);
+            memcpy(link, ptr, tmp-ptr);
+            short_url = get_short_url_alloc(link);
+            if (short_url) {
+                free(link);
+                link = short_url;
+            }
+
+            len += strlen(link);
+            if (!ret) {
+                ret = malloc(len+1);
+                memset(ret, 0, len+1);
+            } else ret = realloc(ret, len+1);
+            strcat(ret, link);
+            free(link);
+            ptr = last = tmp;
+        } else
+            ptr++;
     }
-
-    /* cleanup callback data */
-    if (error && _error) *error = _error;
-    return pixbuf;
+    if (last != ptr) {
+        len += (ptr-last);
+        if (!ret) {
+            ret = malloc(len+1);
+            memset(ret, 0, len+1);
+        } else ret = realloc(ret, len+1);
+        strncat(ret, last, ptr-last);
+    }
+    return ret;
 }
 
 /**
@@ -969,6 +954,103 @@ get_access_token_alloc(
     g_free(query);
     memfclose(mf);
     return ptr;
+}
+
+/**
+ * get pixbuf from URL
+ */
+static GdkPixbuf* url2pixbuf(const char* url, GError** error) {
+    GdkPixbuf* pixbuf = NULL;
+    GdkPixbufLoader* loader = NULL;
+    GError* _error = NULL;
+
+    if (!strncmp(url, "file:///", 8) || g_file_test(url, G_FILE_TEST_EXISTS)) {
+        gchar* newurl = g_filename_from_uri(url, NULL, NULL);
+        pixbuf = gdk_pixbuf_new_from_file(newurl ? newurl : url, &_error);
+    } else {
+        CURL* curl = NULL;
+        MEMFILE* mbody;
+        MEMFILE* mhead;
+        char* head;
+        char* body;
+        unsigned long size;
+        CURLcode res = CURLE_FAILED_INIT;
+
+        curl = curl_easy_init();
+        if (!curl) return NULL;
+
+        mbody = memfopen();
+        mhead = memfopen();
+
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, mbody);
+        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, memfwrite);
+        curl_easy_setopt(curl, CURLOPT_HEADERDATA, mhead);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
+        res = curl_easy_perform(curl);
+        curl_easy_cleanup(curl);
+
+        head = memfstrdup(mhead);
+        memfclose(mhead);
+        body = memfstrdup(mbody);
+        size = mbody->size;
+        memfclose(mbody);
+
+        if (res == CURLE_OK) {
+            char* ctype;
+            char* csize;
+            ctype = get_http_header_alloc(head, "Content-Type");
+            csize = get_http_header_alloc(head, "Content-Length");
+
+#ifdef _WIN32
+            if (ctype &&
+                    (!strcmp(ctype, "image/jpeg") || !strcmp(ctype, "image/gif"))) {
+                char temp_path[MAX_PATH];
+                char temp_filename[MAX_PATH];
+                FILE* fp;
+                GetTempPath(sizeof(temp_path), temp_path);
+                GetTempFileName(temp_path, "gtktweeter-", 0, temp_filename);
+                fp = fopen(temp_filename, "wb");
+                if (fp) {
+                    fwrite(body, size, 1, fp);
+                    fclose(fp);
+                }
+                pixbuf = gdk_pixbuf_new_from_file(temp_filename, NULL);
+                DeleteFile(temp_filename);
+            } else
+#endif
+            {
+                if (ctype)
+                    loader =
+                        (GdkPixbufLoader*) gdk_pixbuf_loader_new_with_mime_type(ctype,
+                                error);
+                if (csize)
+                    size = atol(csize);
+                if (!loader) loader = gdk_pixbuf_loader_new();
+                if (body && gdk_pixbuf_loader_write(loader, (const guchar*) body,
+                            size, &_error)) {
+                    pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+                }
+            }
+            if (ctype) free(ctype);
+            if (csize) free(csize);
+            if (loader) gdk_pixbuf_loader_close(loader, NULL);
+        } else {
+            _error = g_error_new_literal(G_FILE_ERROR, res,
+                    curl_easy_strerror(res));
+        }
+
+        free(head);
+        free(body);
+    }
+
+    /* cleanup callback data */
+    if (error && _error) *error = _error;
+    return pixbuf;
 }
 
 /**
@@ -1395,8 +1477,10 @@ check_ratelimit_thread(gpointer data) {
     res = curl_easy_perform(curl);
     if (res == CURLE_OK)
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
+    curl_easy_cleanup(curl);
 
     g_free(url);
+
     body = memfstrdup(mbody);
     memfclose(mbody);
 
@@ -1552,6 +1636,7 @@ search_timeline_thread(gpointer data) {
     res = curl_easy_perform(curl);
     if (res == CURLE_OK)
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
+    curl_easy_cleanup(curl);
 
     g_free(url);
     head = memfstrdup(mhead);
@@ -2002,6 +2087,7 @@ update_timeline_thread(gpointer data) {
     res = curl_easy_perform(curl);
     if (res == CURLE_OK)
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
+	curl_easy_cleanup(curl);
 
     g_free(query);
     g_free(url);
@@ -2434,10 +2520,9 @@ retweet_status_thread(gpointer data) {
     res = curl_easy_perform(curl);
     if (res == CURLE_OK)
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
-
     curl_easy_cleanup(curl);
-    g_free(query);
 
+    g_free(query);
     body = memfstrdup(mbody);
     memfclose(mbody);
     if (http_status != 200) {
@@ -2584,6 +2669,7 @@ user_profile_thread(gpointer data) {
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, mf);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
     curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
 
     g_free(query);
     g_free(url);
@@ -2843,11 +2929,11 @@ favorite_status_thread(gpointer data) {
     res = curl_easy_perform(curl);
     if (res == CURLE_OK)
         curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
-
     curl_easy_cleanup(curl);
-    g_free(query);
 
+    g_free(query);
     body = memfstrdup(mbody);
+
     if (http_status != 200) {
         if (body) {
             result_str = xml_decode_alloc(body);
@@ -2948,7 +3034,11 @@ post_status_thread(gpointer data) {
 
     if (!status || strlen(status) == 0) return NULL;
 
-    status_encoded = urlencode_alloc(status);
+    ptr = get_short_status_alloc(status);
+    if (!ptr) ptr = strdup(status);
+    status_encoded = urlencode_alloc(ptr);
+    free(ptr);
+
     nonce = get_nonce_alloc();
     query = g_strdup_printf(
         "oauth_consumer_key=%s"
@@ -3019,10 +3109,9 @@ post_status_thread(gpointer data) {
         if (res == CURLE_OK)
             curl_easy_getinfo(curl, CURLINFO_HTTP_CODE, &http_status);
     }
-
     curl_easy_cleanup(curl);
-    g_free(query);
 
+    g_free(query);
     body = memfstrdup(mbody);
     memfclose(mbody);
     if (res != CURLE_OK) {
@@ -3232,6 +3321,7 @@ setup_dialog(GtkWidget* window) {
             curl,
             application_info.consumer_key,
             application_info.consumer_secret);
+    curl_easy_cleanup(curl);
 
     // parse response parameters
     tmp = ptr;
