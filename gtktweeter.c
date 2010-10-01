@@ -87,7 +87,7 @@
 #define ACCEPT_LETTER_REPLY        "1234567890"
 #define TOOLTIP_TIMER_SPAN         (1500)
 #define RELOAD_TIMER_SPAN          (60*1000)
-#define REQUEST_TIMEOUT            (10*1000)
+#define REQUEST_TIMEOUT            (10)
 
 #define XML_CONTENT(x) (x->children ? (char*) x->children->content : NULL)
 
@@ -553,7 +553,7 @@ get_nonce_alloc() {
     char buf[64] = {0};
     char digest[256] = {0};
     snprintf(buf, sizeof(buf), "%d %d", (int) time(NULL), (int) random());
-    sha1(buf, strlen(buf), digest);
+    sha1((const unsigned char*) buf, strlen(buf), (unsigned char*) digest);
     return to_hex_alloc(digest);
 }
 
@@ -749,6 +749,7 @@ static GdkPixbuf* url2pixbuf(const char* url, GError** error) {
 
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
         curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, mbody);
@@ -872,6 +873,7 @@ get_request_token_alloc(
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
     curl_easy_setopt(curl, CURLOPT_URL, SERVICE_REQUEST_TOKEN_URL);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);
@@ -950,6 +952,7 @@ get_access_token_alloc(
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
     curl_easy_setopt(curl, CURLOPT_URL, SERVICE_ACCESS_TOKEN_URL);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);
@@ -1384,6 +1387,7 @@ check_ratelimit_thread(gpointer data) {
     curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, mbody);
@@ -1538,6 +1542,7 @@ search_timeline_thread(gpointer data) {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
     curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, mbody);
@@ -1983,6 +1988,7 @@ update_timeline_thread(gpointer data) {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
     curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, mbody);
@@ -2112,7 +2118,7 @@ update_timeline_thread(gpointer data) {
                 if (status->children) text = (char*) status->children->content;
             }
             if (!strcmp("favorited", (char*) status->name)) {
-                if (!strcmp(status->children->content, "true")) favorited = 1;
+                if (!strcmp((char*) status->children->content, "true")) favorited = 1;
             }
             /* user nodes */
             if (!strcmp("user", (char*) status->name)) {
@@ -2418,6 +2424,7 @@ retweet_status_thread(gpointer data) {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
     curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);
@@ -2571,6 +2578,7 @@ user_profile_thread(gpointer data) {
     curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, memfwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, mf);
@@ -2693,6 +2701,7 @@ expand_short_url_thread(gpointer data) {
     curl_easy_setopt(curl, CURLOPT_VERBOSE, 0);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_URL, (gchar*) data);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, memfwrite);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, mf);
@@ -2824,6 +2833,7 @@ favorite_status_thread(gpointer data) {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
     curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);
@@ -2990,6 +3000,7 @@ post_status_thread(gpointer data) {
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
     curl_easy_setopt(curl, CURLOPT_URL, SERVICE_UPDATE_URL);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, REQUEST_TIMEOUT);
     curl_easy_setopt(curl, CURLOPT_POST, 1);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, query);

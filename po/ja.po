@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 0.0.5\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2010-09-30 11:38+0900\n"
+"POT-Creation-Date: 2010-10-01 08:58+0900\n"
 "PO-Revision-Date: 2007-05-15 20:07+0900\n"
 "Last-Translator: mattn <mattn.jp at gmail.com>\n"
 "Language-Team: mattn <mattn.jp at gmail.com>\n"
@@ -15,79 +15,91 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: ../gtktweeter.c:1423 ../gtktweeter.c:1434 ../gtktweeter.c:1441
-#: ../gtktweeter.c:1446 ../gtktweeter.c:1873 ../gtktweeter.c:1897
-#: ../gtktweeter.c:1904 ../gtktweeter.c:1909 ../gtktweeter.c:2295
-#: ../gtktweeter.c:2455 ../gtktweeter.c:2636
+#: ../gtktweeter.c:1471
+msgid "checking ratelimit..."
+msgstr "API制限チェック中..."
+
+#: ../gtktweeter.c:1573 ../gtktweeter.c:1584 ../gtktweeter.c:1591
+#: ../gtktweeter.c:1596 ../gtktweeter.c:2024 ../gtktweeter.c:2048
+#: ../gtktweeter.c:2055 ../gtktweeter.c:2060 ../gtktweeter.c:2447
+#: ../gtktweeter.c:2855 ../gtktweeter.c:3036
 msgid "unknown server response"
 msgstr "サーバからの応答が不正です"
 
-#: ../gtktweeter.c:1693
+#: ../gtktweeter.c:1843
 #, fuzzy
 msgid "searching statuses..."
 msgstr "ステータス更新中..."
 
-#: ../gtktweeter.c:2167 ../gtktweeter.c:2677
+#: ../gtktweeter.c:2318 ../gtktweeter.c:3076
 msgid "updating statuses..."
 msgstr "ステータス更新中..."
 
-#: ../gtktweeter.c:2325
+#: ../gtktweeter.c:2477
 #, fuzzy
 msgid "retweeting status..."
 msgstr "ステータス送信中..."
 
-#: ../gtktweeter.c:2485
+#: ../gtktweeter.c:2669
+msgid "getting profile..."
+msgstr "プロフィール取得中..."
+
+#: ../gtktweeter.c:2740
+msgid "expanding URL..."
+msgstr "URL展開中..."
+
+#: ../gtktweeter.c:2885
 #, fuzzy
 msgid "favoriting status..."
 msgstr "ステータス送信中..."
 
-#: ../gtktweeter.c:2672
+#: ../gtktweeter.c:3072
 msgid "posting status..."
 msgstr "ステータス送信中..."
 
-#: ../gtktweeter.c:2754
+#: ../gtktweeter.c:3152
 msgid " Search"
 msgstr " 検索"
 
 #. word
-#: ../gtktweeter.c:2757
+#: ../gtktweeter.c:3155
 msgid "Search _Word:"
 msgstr "検索単語:"
 
-#: ../gtktweeter.c:2813
+#: ../gtktweeter.c:3210
 msgid " Setup"
 msgstr " セットアップ"
 
 #. pin
-#: ../gtktweeter.c:2816
+#: ../gtktweeter.c:3213
 msgid "_PIN Code:"
 msgstr "PINコード(_PIN):"
 
-#: ../gtktweeter.c:3365 ../gtktweeter.c:3366
+#: ../gtktweeter.c:3809 ../gtktweeter.c:3810
 msgid "go home"
 msgstr "ホーム"
 
-#: ../gtktweeter.c:3378 ../gtktweeter.c:3379
+#: ../gtktweeter.c:3822 ../gtktweeter.c:3823
 msgid "replies"
 msgstr "返信"
 
-#: ../gtktweeter.c:3391 ../gtktweeter.c:3392
+#: ../gtktweeter.c:3835 ../gtktweeter.c:3836
 msgid "reload statuses"
 msgstr "リロード"
 
-#: ../gtktweeter.c:3404 ../gtktweeter.c:3405
+#: ../gtktweeter.c:3848 ../gtktweeter.c:3849
 msgid "search word"
 msgstr "検索"
 
-#: ../gtktweeter.c:3417 ../gtktweeter.c:3418
+#: ../gtktweeter.c:3861 ../gtktweeter.c:3862
 msgid "show config dialog"
 msgstr "設定ダイアログを表示"
 
-#: ../gtktweeter.c:3446 ../gtktweeter.c:3447
+#: ../gtktweeter.c:3890 ../gtktweeter.c:3891
 msgid "what are you doing?"
 msgstr "今なにしてる？"
 
-#: ../gtktweeter.c:3460 ../gtktweeter.c:3461
+#: ../gtktweeter.c:3904 ../gtktweeter.c:3905
 msgid "post status"
 msgstr "ステータス送信"
 
