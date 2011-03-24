@@ -808,7 +808,6 @@ get_short_status_alloc(const char* status) {
  */
 char*
 get_request_token_alloc(
-        CURL* curl,
         const char* consumer_key,
         const char* consumer_secret) {
 
@@ -821,6 +820,7 @@ get_request_token_alloc(
     char auth[21];
     char error[CURL_ERROR_SIZE] = {0};
     MEMFILE* mf; // mem file
+    CURL* curl;
     CURLcode res = CURLE_OK;
 
     nonce = get_nonce_alloc();
@@ -855,6 +855,7 @@ get_request_token_alloc(
     query = tmp;
 
     mf = memfopen();
+    curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
     curl_easy_setopt(curl, CURLOPT_URL, SERVICE_REQUEST_TOKEN_URL);
@@ -866,6 +867,7 @@ get_request_token_alloc(
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, mf);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
     res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
     if (res != CURLE_OK) {
         fputs(error, stderr);
         ptr = NULL;
@@ -879,7 +881,6 @@ get_request_token_alloc(
 
 char*
 get_access_token_alloc(
-        CURL* curl,
         const char* consumer_key,
         const char* consumer_secret,
         const char* request_token,
@@ -895,6 +896,7 @@ get_access_token_alloc(
     char auth[21];
     char error[CURL_ERROR_SIZE];
     MEMFILE* mf; // mem file
+    CURL* curl;
     CURLcode res = CURLE_OK;
 
     nonce = get_nonce_alloc();
@@ -934,6 +936,7 @@ get_access_token_alloc(
     query = tmp;
 
     mf = memfopen();
+    curl = curl_easy_init();
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0);
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
     curl_easy_setopt(curl, CURLOPT_URL, SERVICE_ACCESS_TOKEN_URL);
@@ -945,6 +948,7 @@ get_access_token_alloc(
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, mf);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
     res = curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
     if (res != CURLE_OK) {
         fputs(error, stderr);
         ptr = NULL;
@@ -1407,7 +1411,7 @@ int
 open_url(const gchar* url) {
     int r = 0;
 #if defined(_WIN32)
-    r = ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOW);
+    r = (int) ShellExecute(NULL, "open", url, NULL, NULL, SW_SHOW);
 #elif defined(MACOSX)
     gchar* command = g_strdup_printf("open '%s'", url);
     g_spawn_command_line_async(command, NULL);
@@ -3287,7 +3291,6 @@ setup_dialog(GtkWidget* window) {
     GtkWidget* label = NULL;
     GtkWidget* pin = NULL;
     gboolean ret = FALSE;
-    CURL* curl;
     char* ptr;
     char* tmp;
     const char* request_token = NULL;
@@ -3321,12 +3324,9 @@ setup_dialog(GtkWidget* window) {
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
     gtk_widget_show_all(dialog);
 
-    curl = curl_easy_init();
     ptr = get_request_token_alloc(
-            curl,
             application_info.consumer_key,
             application_info.consumer_secret);
-    curl_easy_cleanup(curl);
 
     // parse response parameters
     tmp = ptr;
@@ -3377,7 +3377,6 @@ setup_dialog(GtkWidget* window) {
         free(ptr);
 
         ptr = get_access_token_alloc(
-                curl,
                 application_info.consumer_key,
                 application_info.consumer_secret,
                 request_token,
