@@ -3283,14 +3283,14 @@ search_dialog(GtkWidget* widget, gpointer user_data) {
 }
 
 /**
- * login dialog func
+ * input dialog
  */
-static gboolean
-setup_dialog(GtkWidget* window) {
+static char*
+input_dialog(GtkWidget* window, const char* message) {
     GtkWidget* dialog = NULL;
     GtkWidget* label = NULL;
-    GtkWidget* pin = NULL;
-    gboolean ret = FALSE;
+    GtkWidget* entry = NULL;
+    char* ret = NULL;
     char* ptr;
     char* tmp;
     const char* request_token = NULL;
@@ -3306,15 +3306,15 @@ setup_dialog(GtkWidget* window) {
 
     gtk_window_set_title(GTK_WINDOW(dialog), _(APP_TITLE" Setup"));
 
-    /* pin */
-    label = gtk_label_new(_("_PIN Code:"));
+    /* label and entry */
+    label = gtk_label_new(_(message));
     gtk_label_set_use_underline(GTK_LABEL(label), TRUE);
     gtk_misc_set_alignment(GTK_MISC(label), 0.0f, 0.5f);
     gtk_box_pack_start (GTK_BOX (GTK_DIALOG(dialog)->vbox), label, TRUE, TRUE, 0);
 
-    pin = gtk_entry_new();
-    gtk_label_set_mnemonic_widget(GTK_LABEL(label), pin);
-    gtk_box_pack_start (GTK_BOX (GTK_DIALOG(dialog)->vbox), pin, TRUE, TRUE, 0);
+    entry = gtk_entry_new();
+    gtk_label_set_mnemonic_widget(GTK_LABEL(label), entry);
+    gtk_box_pack_start (GTK_BOX (GTK_DIALOG(dialog)->vbox), entry, TRUE, TRUE, 0);
 
     /* show modal dialog */
     gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
@@ -3323,6 +3323,36 @@ setup_dialog(GtkWidget* window) {
             GTK_WINDOW(window));
     gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER_ON_PARENT);
     gtk_widget_show_all(dialog);
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK) {
+        /* set mail/pass value to window object */
+        ret = g_strdup((char*) gtk_entry_get_text(GTK_ENTRY(entry)));
+    }
+    gtk_widget_destroy(dialog);
+    return ret;
+}
+
+
+/**
+ * login dialog func
+ */
+static gboolean
+setup_dialog(GtkWidget* window) {
+    gboolean ret = FALSE;
+    char* ptr;
+    char* tmp;
+    const char* request_token = NULL;
+    const char* request_token_secret = NULL;
+    const char* pin_code = NULL;
+
+    if (!application_info.consumer_key) {
+        application_info.consumer_key = input_dialog(window, "_Consumer Key:");
+        if (!application_info.consumer_key) return FALSE;
+    }
+    if (!application_info.consumer_secret) {
+        application_info.consumer_secret = input_dialog(window, "_Consumer Secret:");
+        if (!application_info.consumer_secret) return FALSE;
+    }
 
     ptr = get_request_token_alloc(
             application_info.consumer_key,
@@ -3347,70 +3377,50 @@ setup_dialog(GtkWidget* window) {
     free(ptr);
 
     if (!request_token || !request_token_secret) {
-        return -1;
+        return FALSE;
     }
 
     ptr = g_strdup_printf("%s?oauth_token=%s",
             SERVICE_AUTH_URL, request_token);
     open_url(ptr);
 
-    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK) {
-        /* set mail/pass value to window object */
-        char* pin_code = (char*) gtk_entry_get_text(GTK_ENTRY(pin));
+    pin_code = input_dialog(window, "_PIN Code:");
+    if (!pin_code) return -1;
 
-        // parse response parameters
-        tmp = ptr;
-        while (tmp && *tmp) {
-            char* stop = strchr(tmp, '&');
-            if (stop) {
-                *stop = 0;
-                if (!strncmp(tmp, "oauth_token=", 12)) {
-                    request_token = strdup(tmp + 12);
-                }
-                if (!strncmp(tmp, "oauth_token_secret=", 19)) {
-                    request_token_secret = strdup(tmp + 19);
-                }
-                tmp = stop + 1;
-            } else
-                break;
-        }
-        free(ptr);
+    ptr = get_access_token_alloc(
+            application_info.consumer_key,
+            application_info.consumer_secret,
+            request_token,
+            request_token_secret,
+            pin_code);
+    g_free(pin_code);
 
-        ptr = get_access_token_alloc(
-                application_info.consumer_key,
-                application_info.consumer_secret,
-                request_token,
-                request_token_secret,
-                pin_code);
-        tmp = ptr;
-        if (application_info.access_token) {
-            free(application_info.access_token);
-            application_info.access_token = NULL;
-        }
-        if (application_info.access_token_secret) {
-            free(application_info.access_token_secret);
-            application_info.access_token_secret = NULL;
-        }
-        while (tmp && *tmp) {
-            char* stop = strchr(tmp, '&');
-            if (stop) {
-                *stop = 0;
-                if (!strncmp(tmp, "oauth_token=", 12)) {
-                    application_info.access_token = strdup(tmp + 12);
-                }
-                if (!strncmp(tmp, "oauth_token_secret=", 19)) {
-                    application_info.access_token_secret = strdup(tmp + 19);
-                }
-                tmp = stop + 1;
-            } else
-                break;
-        }
-
-        save_config();
-        ret = TRUE;
+    tmp = ptr;
+    if (application_info.access_token) {
+        g_free(application_info.access_token);
+        application_info.access_token = NULL;
+    }
+    if (application_info.access_token_secret) {
+        g_free(application_info.access_token_secret);
+        application_info.access_token_secret = NULL;
+    }
+    while (tmp && *tmp) {
+        char* stop = strchr(tmp, '&');
+        if (stop) {
+            *stop = 0;
+            if (!strncmp(tmp, "oauth_token=", 12)) {
+                application_info.access_token = strdup(tmp + 12);
+            }
+            if (!strncmp(tmp, "oauth_token_secret=", 19)) {
+                application_info.access_token_secret = strdup(tmp + 19);
+            }
+            tmp = stop + 1;
+        } else
+            break;
     }
 
-    gtk_widget_destroy(dialog);
+    save_config();
+
     return ret;
 }
 
@@ -4007,7 +4017,7 @@ main(int argc, char* argv[]) {
     gtk_statusbar_push(GTK_STATUSBAR(statusbar), context_id, "");
 
     /* request initial window size */
-    gtk_widget_set_size_request(window, 300, 400);
+    gtk_widget_set_size_request(window, 400, 400);
     gtk_widget_show_all(mainbox);
     gtk_widget_show(window);
 
@@ -4016,9 +4026,6 @@ main(int argc, char* argv[]) {
 
     /* default consumer info */
     memset(&application_info, 0, sizeof(application_info));
-
-    application_info.consumer_key = strdup("CONSUMER_KEY");
-    application_info.consumer_secret = strdup("CONSUMER_SECRET");
 
     load_config();
 
