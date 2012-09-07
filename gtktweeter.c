@@ -3343,7 +3343,7 @@ setup_dialog(GtkWidget* window) {
     char* tmp;
     const char* request_token = NULL;
     const char* request_token_secret = NULL;
-    const char* pin_code = NULL;
+    char* pin_code = NULL;
 
     if (!application_info.consumer_key) {
         application_info.consumer_key = input_dialog(window, "_Consumer Key:");
