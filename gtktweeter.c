@@ -1513,19 +1513,7 @@ search_timeline_thread(gpointer data) {
 
     PIXBUF_CACHE* pixbuf_cache = NULL;
 
-    search = g_object_get_data(G_OBJECT(window), "search");
-    ptr = urlencode_alloc(search);
-    url = g_strdup_printf("%s?q=%s",
-            SERVICE_SEARCH_STATUS_URL,
-            ptr);
-    free(ptr);
-
-    page = g_object_get_data(G_OBJECT(window), "page");
-    if (page) {
-        char* tmp = g_strdup_printf("%s&page=%s", url, page);
-        g_free(url);
-        url = tmp;
-    }
+    url = g_strdup(SERVICE_SEARCH_STATUS_URL);
 
     nonce = get_nonce_alloc();
     query = g_strdup_printf(
@@ -1541,6 +1529,20 @@ search_timeline_thread(gpointer data) {
             (int) time(0),
             application_info.access_token);
     free(nonce);
+
+    search = g_object_get_data(G_OBJECT(window), "search");
+    tmp = urlencode_alloc(search);
+    ptr = g_strdup_printf("%s&q=%s", query, tmp);
+    free(tmp);
+    g_free(query);
+    query = ptr;
+
+    page = g_object_get_data(G_OBJECT(window), "page");
+    if (page) {
+        char* tmp = g_strdup_printf("%s&page=%s", query, page);
+        g_free(query);
+        query = tmp;
+    }
 
     purl = urlencode_alloc(url);
     ptr = urlencode_alloc(query);
@@ -1619,10 +1621,11 @@ search_timeline_thread(gpointer data) {
     gdk_threads_leave();
 
     JSON_Value *root_value = json_parse_string(body);
-    JSON_Array *tweets = json_value_get_array(root_value);
+    JSON_Object *root = json_value_get_object(root_value);
+    JSON_Array *statuses = json_object_get_array(root, "statuses");
 
     /* allocate pixbuf cache buffer */
-    length = json_array_get_count(tweets);
+    length = json_array_get_count(statuses);
     pixbuf_cache = malloc(length*sizeof(PIXBUF_CACHE));
     memset(pixbuf_cache, 0, length*sizeof(PIXBUF_CACHE));
 
@@ -1643,7 +1646,7 @@ search_timeline_thread(gpointer data) {
         char localdate[256];
         int cache;
 
-        JSON_Object *tweet = json_array_get_object(tweets, n);
+        JSON_Object *tweet = json_array_get_object(statuses, n);
 
         /* status nodes */
         id = json_object_dotget_string(tweet, "id");
