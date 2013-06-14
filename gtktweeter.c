@@ -1429,6 +1429,7 @@ check_ratelimit_thread(gpointer data) {
     result_str = g_strdup_printf("%d times before %s", remaining_hits, localdate);
 
 leave:
+    if (root_value) json_value_free(root_value);
     if (body) free(body);
     return result_str;
 }
@@ -1795,6 +1796,7 @@ search_timeline_thread(gpointer data) {
     gdk_threads_leave();
 
 leave:
+    if (root_value) json_value_free(root_value);
     if (body) free(body);
     return result_str;
 }
@@ -2221,6 +2223,7 @@ update_timeline_thread(gpointer data) {
     gdk_threads_leave();
 
 leave:
+    if (root_value) json_value_free(root_value);
     if (head) free(head);
     if (body) free(body);
     return result_str;
@@ -2547,6 +2550,7 @@ user_profile_thread(gpointer data) {
     g_free(result_str);
     result_str = tmp;
 
+    if (root_value) json_value_free(root_value);
     if (body) free(body);
     return result_str;
 }
