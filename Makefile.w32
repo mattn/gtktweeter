@@ -2,7 +2,7 @@ CFLAGS=/MT
 
 all : gtktweeter.exe
 
-console : gtktweeter.obj gtktweeter.res
+console : gtktweeter.obj gtktweeter.res parson.obj
 	link -out:gtktweeter.exe \
 		-LIBPATH:c:/gtk/lib \
 		gtktweeter.obj \
@@ -15,7 +15,6 @@ console : gtktweeter.obj gtktweeter.res
 		gdk_pixbuf-2.0.lib \
 		gobject-2.0.lib \
 		pango-1.0.lib \
-		xml2.lib \
 		libcurl.lib \
 		intl.lib \
 		shell32.lib
@@ -33,7 +32,6 @@ gtktweeter.exe : gtktweeter.obj gtktweeter.res
 		gdk_pixbuf-2.0.lib \
 		gobject-2.0.lib \
 		pango-1.0.lib \
-		xml2.lib \
 		libcurl.lib \
 		intl.lib \
 		shell32.lib
@@ -44,13 +42,15 @@ gtktweeter.obj : gtktweeter.c
 		-Ic:/gtk/include \
 		-Ic:/gtk/include/gtk-2.0 \
 		-Ic:/gtk/include/cairo \
-		-Ic:/gtk/include/libxml2 \
 		-Ic:/gtk/lib/glib-2.0/include \
 		-Ic:/gtk/lib/gtk-2.0/include \
 		-Ic:/gtk/include/glib-2.0 \
 		-Ic:/gtk/include/pango-1.0 \
 		-Ic:/gtk/include/atk-1.0 \
 		gtktweeter.c
+
+parson.obj : parson.c
+	cl -c parson.c
 
 gtktweeter.res : gtktweeter.rc
 	rc gtktweeter.rc

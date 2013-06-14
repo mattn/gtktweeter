@@ -25,9 +25,7 @@
 #include <gdk/gdkkeysyms.h>
 #include <glib/gconvert.h>
 #include <glib/gstdio.h>
-#include <libxml/parser.h>
-#include <libxml/xpath.h>
-#include <libxml/xpathInternals.h>
+#include <parson.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <time.h>
@@ -66,21 +64,21 @@
 #define APP_TITLE                  "GtkTweeter"
 #define APP_NAME                   "gtktweeter"
 #define APP_VERSION                "0.1.0"
-#define SERVICE_SEARCH_STATUS_URL  "http://search.twitter.com/search.rss"
-#define SERVICE_RATE_LIMIT_URL     "http://api.twitter.com/1/account/rate_limit_status.xml"
-#define SERVICE_USER_SHOW_URL      "https://api.twitter.com/1/users/show/%s.xml"
-#define SERVICE_UPDATE_URL         "https://api.twitter.com/1/statuses/update.xml"
-#define SERVICE_RETWEET_URL        "https://api.twitter.com/1/statuses/retweet/%s.xml"
-#define SERVICE_FAVORITE_URL       "https://api.twitter.com/1/favorites/create/%s.xml"
-#define SERVICE_UNFAVORITE_URL     "https://api.twitter.com/1/favorites/destroy/%s.xml"
-#define SERVICE_REPLIES_STATUS_URL "https://api.twitter.com/1/statuses/mentions.xml"
-#define SERVICE_HOME_STATUS_URL    "https://api.twitter.com/1/statuses/home_timeline.xml"
-#define SERVICE_USER_STATUS_URL    "https://api.twitter.com/1/statuses/user_timeline/%s.xml"
-#define SERVICE_THREAD_STATUS_URL  "https://api.twitter.com/1/statuses/thread_timeline/%s.xml"
+#define SERVICE_SEARCH_STATUS_URL  "https://api.twitter.com/1.1/search/tweets.json"
+#define SERVICE_RATE_LIMIT_URL     "https://api.twitter.com/1.1/application/rate_limit_status.json"
+#define SERVICE_USER_SHOW_URL      "https://api.twitter.com/1.1/users/show/%s.json"
+#define SERVICE_UPDATE_URL         "https://api.twitter.com/1.1/statuses/update.json"
+#define SERVICE_RETWEET_URL        "https://api.twitter.com/1.1/statuses/retweet/%s.json"
+#define SERVICE_FAVORITE_URL       "https://api.twitter.com/1.1/favorites/create/%s.json"
+#define SERVICE_UNFAVORITE_URL     "https://api.twitter.com/1.1/favorites/destroy/%s.json"
+#define SERVICE_REPLIES_STATUS_URL "https://api.twitter.com/1.1/statuses/mentions.json"
+#define SERVICE_HOME_STATUS_URL    "https://api.twitter.com/1.1/statuses/home_timeline.json"
+#define SERVICE_USER_STATUS_URL    "https://api.twitter.com/1.1/statuses/user_timeline/%s.json"
+#define SERVICE_THREAD_STATUS_URL  "https://api.twitter.com/1.1/statuses/thread_timeline/%s.json"
 #define SERVICE_ACCESS_TOKEN_URL   "https://api.twitter.com/oauth/access_token"
 #define SERVICE_STATUS_URL         "http://twitter.com/%s/status/%s"
 #define SERVICE_AUTH_URL           "https://twitter.com/oauth/authorize"
-#define SERVICE_REQUEST_TOKEN_URL  "http://twitter.com/oauth/request_token"
+#define SERVICE_REQUEST_TOKEN_URL  "http://api.twitter.com/oauth/request_token"
 #define ACCEPT_LETTER_URL          "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789;/?:@&=+$,-_.!~*'%"
 #define ACCEPT_LETTER_USER         "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 #define ACCEPT_LETTER_TAG          "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
@@ -90,10 +88,8 @@
 #define REQUEST_TIMEOUT            (10)
 #define SHORTURL_API_URL           "http://is.gd/api.php?longurl=%s"
 
-#define XML_CONTENT(x) (x->children ? (char*) x->children->content : NULL)
-
 typedef struct _PIXBUF_CACHE {
-    char* user_id;
+    const char* user_id;
     GdkPixbuf* pixbuf;
 } PIXBUF_CACHE;
 
@@ -649,53 +645,6 @@ static void
 reset_reload_timer(GtkWidget* window) {
     stop_reload_timer(window);
     start_reload_timer(window);
-}
-
-/**
- * string utilities
- */
-static char* xml_decode_alloc(const char* str) {
-    char* buf = NULL;
-    unsigned char* pbuf = NULL;
-    int len = 0;
-
-    if (!str) return NULL;
-    len = strlen(str)*3;
-    buf = malloc(len+1);
-    memset(buf, 0, len+1);
-    pbuf = (unsigned char*) buf;
-    while(*str) {
-        if (*str == '<') {
-            char* ptr = strchr(str, '>');
-            if (ptr) str = ptr + 1;
-        } else
-        if (!memcmp(str, "&amp;", 5)) {
-            strcat((char*) pbuf++, "&");
-            str += 5;
-        } else
-        if (!memcmp(str, "&nbsp;", 6)) {
-            strcat((char*) pbuf++, " ");
-            str += 6;
-        } else
-        if (!memcmp(str, "&quot;", 6)) {
-            strcat((char*) pbuf++, "\"");
-            str += 6;
-        } else
-        if (!memcmp(str, "&nbsp;", 6)) {
-            strcat((char*) pbuf++, " ");
-            str += 6;
-        } else
-        if (!memcmp(str, "&lt;", 4)) {
-            strcat((char*) pbuf++, "<");
-            str += 4;
-        } else
-        if (!memcmp(str, "&gt;", 4)) {
-            strcat((char*) pbuf++, ">");
-            str += 4;
-        } else
-            *pbuf++ = *str++;
-    }
-    return buf;
 }
 
 static char*
@@ -1260,8 +1209,7 @@ insert_status_text(GtkTextBuffer* buffer, GtkTextIter* iter, const char* status)
 }
 
 static time_t
-atomtime_to_time(struct tm* tm, char* s) {
-    char* os;
+tweettime_to_time(struct tm* tm, const char* s) {
     int i;
     struct tm tmptm;
     time_t tmptime;
@@ -1277,80 +1225,6 @@ atomtime_to_time(struct tm* tm, char* s) {
     };
 
     memset(&tmptm, 0, sizeof(tmptm));
-    os = s;
-    /* Sun */
-    for(i = 0; i < sizeof(wday)/sizeof(wday[0]); i++) {
-        if (strncmp(s, wday[i], strlen(wday[i])) == 0) {
-            tmptm.tm_wday = i;
-            s += strlen(wday[i]);
-            break;
-        }
-    }
-    if (i == sizeof(wday)/sizeof(wday[0])) return -1;
-    if (*s != ',' && *s != ' ') return -1;
-    while (isspace(*s) || *s == ',') s++;
-
-    /* 25 */
-    tmptm.tm_mday = atoi(s);
-    while (isdigit(*s)) s++;
-    if (*s != ',' && *s != ' ') return -1;
-    while (isspace(*s) || *s == ',') s++;
-
-    /* Jan */
-    for(i = 0; i < sizeof(mon)/sizeof(mon[0]); i++) {
-        if (strncmp(s, mon[i], strlen(mon[i])) == 0) {
-            tmptm.tm_mon = i;
-            s += strlen(mon[i]);
-            break;
-        }
-    }
-    if (i == sizeof(mon)/sizeof(mon[0])) return -1;
-    if (*s != ',' && *s != ' ') return -1;
-    while (isspace(*s) || *s == ',') s++;
-
-    /* 2002 */
-    tmptm.tm_year = atoi(s) - 1900;
-    while (isdigit(*s)) s++;
-    if (*s != ',' && *s != ' ') return -1;
-    while (isspace(*s) || *s == ',') s++;
-
-    /* 00:00:00 */
-    if (!(isdigit(s[0]) && isdigit(s[1]) && s[2] == ':'
-       && isdigit(s[3]) && isdigit(s[4]) && s[5] == ':'
-       && isdigit(s[6]) && isdigit(s[7]) && s[8] == ' ')) return -1;
-    tmptm.tm_hour = atoi(s);
-    tmptm.tm_min = atoi(s+3);
-    tmptm.tm_sec = atoi(s+6);
-    if (tmptm.tm_hour >= 24 || tmptm.tm_min >= 60 || tmptm.tm_sec >= 60) return -1;
-    while (!isspace(*s) && *s != ',') s++;
-    while (isspace(*s) || *s == ',') s++;
-    tmptm.tm_isdst = 0;
-
-    tmptm.tm_yday = 0;
-    tmptime = mktime(&tmptm) - timezone;
-    memcpy(tm, localtime(&tmptime), sizeof(struct tm));
-    return mktime(tm);
-}
-
-static time_t
-tweettime_to_time(struct tm* tm, char* s) {
-    char* os;
-    int i;
-    struct tm tmptm;
-    time_t tmptime;
-
-    static char* wday[] = {
-        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat",
-        NULL
-    };
-    static char* mon[] = {
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-        NULL
-    };
-
-    memset(&tmptm, 0, sizeof(tmptm));
-    os = s;
     /* Sun */
     for(i = 0; i < sizeof(wday)/sizeof(wday[0]); i++) {
         if (strncmp(s, wday[i], strlen(wday[i])) == 0) {
@@ -1461,18 +1335,58 @@ check_ratelimit_thread(gpointer data) {
     char localdate[256];
     int remaining_hits = 0;
 
+    char* ptr = NULL;
+    char* tmp;
+    char* key;
+    char* query;
+    char* nonce;
     char* url;
+    char* purl;
+    char auth[21];
     gpointer result_str = NULL;
     MEMFILE* mbody = NULL;
     char* body = NULL;
 
-    xmlDocPtr doc = NULL;
-    xmlNodeSetPtr nodes = NULL;
-    xmlXPathContextPtr ctx = NULL;
-    xmlXPathObjectPtr path = NULL;
-    xmlNodePtr info = NULL;
-
     url = g_strdup(SERVICE_RATE_LIMIT_URL);
+
+    nonce = get_nonce_alloc();
+    query = g_strdup_printf(
+        "oauth_consumer_key=%s"
+        "&oauth_nonce=%s"
+        "&oauth_request_method=GET"
+        "&oauth_signature_method=HMAC-SHA1"
+        "&oauth_timestamp=%d"
+        "&oauth_token=%s"
+        "&oauth_version=1.0",
+            application_info.consumer_key,
+            nonce,
+            (int) time(0),
+            application_info.access_token);
+    free(nonce);
+
+    purl = urlencode_alloc(url);
+    ptr = urlencode_alloc(query);
+    tmp = g_strdup_printf("GET&%s&%s", purl, ptr);
+    free(purl);
+    free(ptr);
+    key = g_strdup_printf(
+            "%s&%s",
+            application_info.consumer_secret,
+            application_info.access_token_secret);
+    hmac((unsigned char*) key, strlen(key),
+            (unsigned char*) tmp, strlen(tmp), (unsigned char*) auth);
+    g_free(key);
+    g_free(tmp);
+    tmp = base64encode_alloc(auth, 20);
+    ptr = urlencode_alloc(tmp);
+    free(tmp);
+    tmp = g_strdup_printf("%s&oauth_signature=%s", query, ptr);
+    free(ptr);
+    g_free(query);
+    query = tmp;
+    purl = g_strdup_printf("%s?%s", url, query);
+    g_free(url);
+    url = purl;
 
     mbody = memfopen();
     curl = curl_easy_init();
@@ -1503,35 +1417,19 @@ check_ratelimit_thread(gpointer data) {
         goto leave;
     }
 
-    /* parse xml */
-    doc = body ? xmlParseDoc((xmlChar*) body) : NULL;
-    if (!doc) goto leave;
-    ctx = xmlXPathNewContext(doc);
-    if (!ctx) goto leave;
-    path = xmlXPathEvalExpression((xmlChar*)"/hash", ctx);
-    if (!path) goto leave;
-    nodes = path->nodesetval;
-    if (!nodes || !nodes->nodeTab) goto leave;
-    info = nodes->nodeTab[0]->children;
-    while(info) {
-        if (!strcmp("remaining-hits", (char*) info->name)) {
-            remaining_hits = atol(XML_CONTENT(info));
-        }
-        if (!strcmp("reset-time-in-seconds", (char*) info->name)) {
-            long times = atol(XML_CONTENT(info));
-            memcpy(&localtm, localtime(&times), sizeof(struct tm));
-        }
-        info = info->next;
-    }
+    JSON_Value *root_value = json_parse_string(body);
+    JSON_Object *resources = json_value_get_object(root_value);
+    JSON_Object *application = json_object_dotget_object(resources, "resources.application");
+    JSON_Object *rate_limit_status = json_object_get_object(application, "/application/rate_limit_status");
+    remaining_hits = json_object_get_number(rate_limit_status, "remaining");
+    long times = json_object_get_number(rate_limit_status, "reset");
+    memcpy(&localtm, localtime(&times), sizeof(struct tm));
 
     strftime(localdate, sizeof(localdate), "%x %X", &localtm);
     result_str = g_strdup_printf("%d times before %s", remaining_hits, localdate);
 
 leave:
     if (body) free(body);
-    if (path) xmlXPathFreeObject(path);
-    if (ctx) xmlXPathFreeContext(ctx);
-    if (doc) xmlFreeDoc(doc);
     return result_str;
 }
 
@@ -1596,20 +1494,20 @@ search_timeline_thread(gpointer data) {
     gchar* title = NULL;
 
     char* ptr = NULL;
+    char* tmp;
+    char* key;
+    char* query;
+    char* nonce;
     char* url;
+    char* purl;
+    char auth[21];
     char error[CURL_ERROR_SIZE];
     gpointer result_str = NULL;
     MEMFILE* mhead = NULL;
     MEMFILE* mbody = NULL;
     char* body = NULL;
-    char* head = NULL;
     int n;
     int length;
-
-    xmlDocPtr doc = NULL;
-    xmlNodeSetPtr nodes = NULL;
-    xmlXPathContextPtr ctx = NULL;
-    xmlXPathObjectPtr path = NULL;
 
     GtkTextIter iter;
 
@@ -1628,6 +1526,45 @@ search_timeline_thread(gpointer data) {
         g_free(url);
         url = tmp;
     }
+
+    nonce = get_nonce_alloc();
+    query = g_strdup_printf(
+        "oauth_consumer_key=%s"
+        "&oauth_nonce=%s"
+        "&oauth_request_method=GET"
+        "&oauth_signature_method=HMAC-SHA1"
+        "&oauth_timestamp=%d"
+        "&oauth_token=%s"
+        "&oauth_version=1.0",
+            application_info.consumer_key,
+            nonce,
+            (int) time(0),
+            application_info.access_token);
+    free(nonce);
+
+    purl = urlencode_alloc(url);
+    ptr = urlencode_alloc(query);
+    tmp = g_strdup_printf("GET&%s&%s", purl, ptr);
+    free(purl);
+    free(ptr);
+    key = g_strdup_printf(
+            "%s&%s",
+            application_info.consumer_secret,
+            application_info.access_token_secret);
+    hmac((unsigned char*) key, strlen(key),
+            (unsigned char*) tmp, strlen(tmp), (unsigned char*) auth);
+    g_free(key);
+    g_free(tmp);
+    tmp = base64encode_alloc(auth, 20);
+    ptr = urlencode_alloc(tmp);
+    free(tmp);
+    tmp = g_strdup_printf("%s&oauth_signature=%s", query, ptr);
+    free(ptr);
+    g_free(query);
+    query = tmp;
+    purl = g_strdup_printf("%s?%s", url, query);
+    g_free(url);
+    url = purl;
 
     mhead = memfopen();
     mbody = memfopen();
@@ -1648,8 +1585,6 @@ search_timeline_thread(gpointer data) {
     curl_easy_cleanup(curl);
 
     g_free(url);
-    head = memfstrdup(mhead);
-    memfclose(mhead);
     body = memfstrdup(mbody);
     memfclose(mbody);
 
@@ -1662,35 +1597,12 @@ search_timeline_thread(gpointer data) {
     }
     if (http_status != 200) {
         if (body) {
-            result_str = xml_decode_alloc(body);
+            result_str = g_strdup(body);
         } else {
             result_str = g_strdup(_("unknown server response"));
         }
         goto leave;
     }
-
-    /* parse xml */
-    doc = body ? xmlParseDoc((xmlChar*) body) : NULL;
-    if (!doc) {
-        if (body)
-            result_str = xml_decode_alloc(body);
-        else
-            result_str = g_strdup(_("unknown server response"));
-        goto leave;
-    }
-
-    /* create xpath query */
-    ctx = xmlXPathNewContext(doc);
-    if (!ctx) {
-        result_str = g_strdup(_("unknown server response"));
-        goto leave;
-    }
-    path = xmlXPathEvalExpression((xmlChar*)"/rss/channel/item", ctx);
-    if (!path) {
-        result_str = g_strdup(_("unknown server response"));
-        goto leave;
-    }
-    nodes = path->nodesetval;
 
     title = g_strdup_printf("%s - Search \"%s\"", APP_TITLE, search);
     gtk_window_set_title(GTK_WINDOW(window), title);
@@ -1706,20 +1618,23 @@ search_timeline_thread(gpointer data) {
     }
     gdk_threads_leave();
 
+    JSON_Value *root_value = json_parse_string(body);
+    JSON_Array *tweets = json_value_get_array(root_value);
+
     /* allocate pixbuf cache buffer */
-    length = xmlXPathNodeSetGetLength(nodes);
+    length = json_array_get_count(tweets);
     pixbuf_cache = malloc(length*sizeof(PIXBUF_CACHE));
     memset(pixbuf_cache, 0, length*sizeof(PIXBUF_CACHE));
 
     /* make timeline */
     for(n = 0; n < length; n++) {
-        char* id = NULL;
-        char* user_id = NULL;
-        char* icon = NULL;
-        char* real = NULL;
-        char* user_name = NULL;
-        char* text = NULL;
-        char* date = NULL;
+        const char* id = NULL;
+        const char* user_id = NULL;
+        const char* icon = NULL;
+        const char* real = NULL;
+        const char* user_name = NULL;
+        const char* text = NULL;
+        const char* date = NULL;
         int favorited = 0;
         int retweeted = 0;
         GdkPixbuf* pixbuf = NULL;
@@ -1728,43 +1643,18 @@ search_timeline_thread(gpointer data) {
         char localdate[256];
         int cache;
 
+        JSON_Object *tweet = json_array_get_object(tweets, n);
+
         /* status nodes */
-        xmlNodePtr status = nodes->nodeTab[n];
-        if (status->type != XML_ATTRIBUTE_NODE && status->type != XML_ELEMENT_NODE && status->type != XML_CDATA_SECTION_NODE) continue;
-        status = status->children;
-        while(status) {
-            if (!strcmp("guid", (char*) status->name)) {
-                char* stop = strrchr((char*) status->children->content, '/');
-                if (stop) id = stop + 1;
-                else id = (char*) status->children->content;
-            }
-            if (!strcmp("pubDate", (char*) status->name)) date = (char*) status->children->content;
-            if (!strcmp("description", (char*) status->name)) {
-                if (status->children) text = (char*) status->children->content;
-            }
-            if (!strcmp("image_link", (char*) status->name)) {
-                if (status->children) icon = (char*) status->children->content;
-            }
-            if (!strcmp("author", (char*) status->name)) {
-                if (status->children) {
-                    char* stop;
-                    real = user_name = user_id = (char*) status->children->content;
-                    stop = strchr(user_id, '@');
-                    if (stop) {
-                        *stop = 0;
-                        stop = strchr(stop + 1, '(');
-                        if (stop) {
-                            gchar* stop2 = strrchr(stop, ')');
-                            if (stop2) {
-                                *stop2 = 0;
-                                real = stop + 1;
-                            }
-                        }
-                    }
-                }
-            }
-            status = status->next;
-        }
+        id = json_object_dotget_string(tweet, "id");
+        date = json_object_dotget_string(tweet, "created_at");
+        text = json_object_dotget_string(tweet, "text");
+        favorited = json_object_dotget_boolean(tweet, "favorited");
+        retweeted = json_object_dotget_boolean(tweet, "retweeted");
+        user_id = json_object_dotget_string(tweet, "user.id");
+        real = json_object_dotget_string(tweet, "user.name");
+        user_name = json_object_dotget_string(tweet, "user.screen_name");
+        icon = json_object_dotget_string(tweet, "user.profile_image_url");
 
         /**
          * avoid to duplicate downloading of icon.
@@ -1818,11 +1708,10 @@ search_timeline_thread(gpointer data) {
         gtk_text_buffer_insert(buffer, &iter, " (", -1);
         gtk_text_buffer_insert(buffer, &iter, real, -1);
         gtk_text_buffer_insert(buffer, &iter, ")\n", -1);
-        text = xml_decode_alloc(text);
         insert_status_text(buffer, &iter, text);
         gtk_text_buffer_insert(buffer, &iter, "\n", -1);
 
-        atomtime_to_time(&localtm, date);
+        tweettime_to_time(&localtm, date);
         strftime(localdate, sizeof(localdate), "%x %X", &localtm);
 
         tag = gtk_text_buffer_create_tag(
@@ -1884,7 +1773,6 @@ search_timeline_thread(gpointer data) {
         g_object_set_data(G_OBJECT(tag), "favorite", g_strdup_printf((favorited ? "-%s" : "%s"), id));
         gtk_text_buffer_insert_with_tags(buffer, &iter, "favorite", -1, tag, NULL);
 
-        free(text);
         gtk_text_buffer_insert(buffer, &iter, "\n\n", -1);
 
         if (n == length - 1) {
@@ -1904,11 +1792,7 @@ search_timeline_thread(gpointer data) {
     gdk_threads_leave();
 
 leave:
-    if (head) free(head);
     if (body) free(body);
-    if (path) xmlXPathFreeObject(path);
-    if (ctx) xmlXPathFreeContext(ctx);
-    if (doc) xmlFreeDoc(doc);
     return result_str;
 }
 
@@ -1990,11 +1874,6 @@ update_timeline_thread(gpointer data) {
     int n;
     int length;
     char* cond;
-
-    xmlDocPtr doc = NULL;
-    xmlNodeSetPtr nodes = NULL;
-    xmlXPathContextPtr ctx = NULL;
-    xmlXPathObjectPtr path = NULL;
 
     GtkTextIter iter;
 
@@ -2114,7 +1993,7 @@ update_timeline_thread(gpointer data) {
     }
     if (http_status != 200) {
         if (body) {
-            result_str = xml_decode_alloc(body);
+            result_str = g_strdup(body);
         } else {
             result_str = g_strdup(_("unknown server response"));
         }
@@ -2133,29 +2012,6 @@ update_timeline_thread(gpointer data) {
         }
     }
     if (cond) free(cond);
-
-    /* parse xml */
-    doc = body ? xmlParseDoc((xmlChar*) body) : NULL;
-    if (!doc) {
-        if (body)
-            result_str = xml_decode_alloc(body);
-        else
-            result_str = g_strdup(_("unknown server response"));
-        goto leave;
-    }
-
-    /* create xpath query */
-    ctx = xmlXPathNewContext(doc);
-    if (!ctx) {
-        result_str = g_strdup(_("unknown server response"));
-        goto leave;
-    }
-    path = xmlXPathEvalExpression((xmlChar*)"/statuses/status", ctx);
-    if (!path) {
-        result_str = g_strdup(_("unknown server response"));
-        goto leave;
-    }
-    nodes = path->nodesetval;
 
     if (mode && !strcmp(mode, "replies"))
         title = g_strdup_printf("%s - Replies", APP_TITLE);
@@ -2180,20 +2036,23 @@ update_timeline_thread(gpointer data) {
     }
     gdk_threads_leave();
 
+    JSON_Value *root_value = json_parse_string(body);
+    JSON_Array *tweets = json_value_get_array(root_value);
+
     /* allocate pixbuf cache buffer */
-    length = xmlXPathNodeSetGetLength(nodes);
+    length = json_array_get_count(tweets);
     pixbuf_cache = malloc(length*sizeof(PIXBUF_CACHE));
     memset(pixbuf_cache, 0, length*sizeof(PIXBUF_CACHE));
 
     /* make timeline */
     for(n = 0; n < length; n++) {
-        char* id = NULL;
-        char* user_id = NULL;
-        char* icon = NULL;
-        char* real = NULL;
-        char* user_name = NULL;
-        char* text = NULL;
-        char* date = NULL;
+        const char* id = NULL;
+        const char* user_id = NULL;
+        const char* icon = NULL;
+        const char* real = NULL;
+        const char* user_name = NULL;
+        const char* text = NULL;
+        const char* date = NULL;
         int favorited = 0;
         int retweeted = 0;
         GdkPixbuf* pixbuf = NULL;
@@ -2202,36 +2061,18 @@ update_timeline_thread(gpointer data) {
         char localdate[256];
         int cache;
 
+        JSON_Object *tweet = json_array_get_object(tweets, n);
+
         /* status nodes */
-        xmlNodePtr status = nodes->nodeTab[n];
-        if (status->type != XML_ATTRIBUTE_NODE && status->type != XML_ELEMENT_NODE && status->type != XML_CDATA_SECTION_NODE) continue;
-        status = status->children;
-        while(status) {
-            if (!strcmp("id", (char*) status->name)) id = (char*) status->children->content;
-            if (!strcmp("created_at", (char*) status->name)) date = (char*) status->children->content;
-            if (!strcmp("text", (char*) status->name)) {
-                if (status->children) text = (char*) status->children->content;
-            }
-            if (!strcmp("favorited", (char*) status->name)) {
-                if (!strcmp((char*) status->children->content, "true")) favorited = 1;
-            }
-            /* user nodes */
-            if (!strcmp("user", (char*) status->name)) {
-                xmlNodePtr user = status->children;
-                while(user) {
-                    if (!strcmp("id", (char*) user->name)) user_id = XML_CONTENT(user);
-                    if (!strcmp("name", (char*) user->name)) real = XML_CONTENT(user);
-                    if (!strcmp("screen_name", (char*) user->name)) user_name = XML_CONTENT(user);
-                    if (!strcmp("profile_image_url", (char*) user->name)) {
-                        icon = XML_CONTENT(user);
-                        icon = (char*) g_strchomp((gchar*) icon);
-                        icon = (char*) g_strchug((gchar*) icon);
-                    }
-                    user = user->next;
-                }
-            }
-            status = status->next;
-        }
+        id = json_object_dotget_string(tweet, "id");
+        date = json_object_dotget_string(tweet, "created_at");
+        text = json_object_dotget_string(tweet, "text");
+        favorited = json_object_dotget_boolean(tweet, "favorited");
+        retweeted = json_object_dotget_boolean(tweet, "retweeted");
+        user_id = json_object_dotget_string(tweet, "user.id");
+        real = json_object_dotget_string(tweet, "user.name");
+        user_name = json_object_dotget_string(tweet, "user.screen_name");
+        icon = json_object_dotget_string(tweet, "user.profile_image_url");
 
         /* skip duplicate status in previous/current. */
         if (max_id && !strcmp(id, max_id)) {
@@ -2290,7 +2131,6 @@ update_timeline_thread(gpointer data) {
         gtk_text_buffer_insert(buffer, &iter, " (", -1);
         gtk_text_buffer_insert(buffer, &iter, real, -1);
         gtk_text_buffer_insert(buffer, &iter, ")\n", -1);
-        text = xml_decode_alloc(text);
         insert_status_text(buffer, &iter, text);
         gtk_text_buffer_insert(buffer, &iter, "\n", -1);
 
@@ -2359,7 +2199,6 @@ update_timeline_thread(gpointer data) {
         g_object_set_data(G_OBJECT(tag), "favorite", g_strdup_printf((favorited ? "-%s" : "%s"), id));
         gtk_text_buffer_insert_with_tags(buffer, &iter, "favorite", -1, tag, NULL);
 
-        free(text);
         gtk_text_buffer_insert(buffer, &iter, "\n\n", -1);
 
         if (n == length - 1) {
@@ -2381,9 +2220,6 @@ update_timeline_thread(gpointer data) {
 leave:
     if (head) free(head);
     if (body) free(body);
-    if (path) xmlXPathFreeObject(path);
-    if (ctx) xmlXPathFreeContext(ctx);
-    if (doc) xmlFreeDoc(doc);
     return result_str;
 }
 
@@ -2536,7 +2372,7 @@ retweet_status_thread(gpointer data) {
     memfclose(mbody);
     if (http_status != 200) {
         if (body) {
-            result_str = xml_decode_alloc(body);
+            result_str = g_strdup(body);
         } else {
             result_str = g_strdup(_("unknown server response"));
         }
@@ -2620,13 +2456,6 @@ user_profile_thread(gpointer data) {
     gpointer result_str = NULL;
     MEMFILE* mf;
     char* body;
-    int n;
-    int length;
-
-    xmlDocPtr doc = NULL;
-    xmlNodeSetPtr nodes = NULL;
-    xmlXPathContextPtr ctx = NULL;
-    xmlXPathObjectPtr path = NULL;
 
     url = g_strdup_printf(SERVICE_USER_SHOW_URL, (gchar*) data);
 
@@ -2685,61 +2514,37 @@ user_profile_thread(gpointer data) {
     body = memfstrdup(mf);
     memfclose(mf);
 
-    doc = body ? xmlParseDoc((xmlChar*) body) : NULL;
-    if (!doc) goto leave;
-    ctx = xmlXPathNewContext(doc);
-    if (!ctx) goto leave;
-    path = xmlXPathEvalExpression((xmlChar*)"/user", ctx);
-    if (!path) goto leave;
-    nodes = path->nodesetval;
-
-    length = xmlXPathNodeSetGetLength(nodes);
+    JSON_Value *root_value = json_parse_string(body);
+    JSON_Object *user = json_value_get_object(root_value);
 
     result_str = g_strdup("");
 
-    /* make timeline */
-    for(n = 0; n < length; n++) {
-        xmlNodePtr info = nodes->nodeTab[n];
-        if (info->type != XML_ATTRIBUTE_NODE && info->type != XML_ELEMENT_NODE && info->type != XML_CDATA_SECTION_NODE) continue;
-        info = info->children;
-        while(info) {
-            // <protected>
-            // <friends_count>
-            // <followers_count>
-            if (!strcmp("name", (char*) info->name)) {
-                tmp = g_strconcat(result_str, "user name:", XML_CONTENT(info), "\n", NULL);
-                g_free(result_str);
-                result_str = tmp;
-            }
-            if (!strcmp("screen_name", (char*) info->name)) {
-                tmp = g_strconcat(result_str, "screen name:", XML_CONTENT(info), "\n", NULL);
-                g_free(result_str);
-                result_str = tmp;
-            }
-            if (!strcmp("description", (char*) info->name)) {
-                tmp = g_strconcat(result_str, "description:\n", XML_CONTENT(info), "\n\n", NULL);
-                g_free(result_str);
-                result_str = tmp;
-            }
-            if (!strcmp("location", (char*) info->name)) {
-                tmp = g_strconcat(result_str, "location:", XML_CONTENT(info), "\n", NULL);
-                g_free(result_str);
-                result_str = tmp;
-            }
-            if (!strcmp("url", (char*) info->name)) {
-                tmp = g_strconcat(result_str, "URL:", XML_CONTENT(info), "\n", NULL);
-                g_free(result_str);
-                result_str = tmp;
-            }
-            info = info->next;
-        }
-    }
+    tmp = (char*) json_object_get_string(user, "name");
+    tmp = g_strconcat(result_str, "user name:", tmp, "\n", NULL);
+    g_free(result_str);
+    result_str = tmp;
 
-leave:
+    tmp = (char*) json_object_get_string(user, "screen_name");
+    tmp = g_strconcat(result_str, "screen name:", tmp, "\n", NULL);
+    g_free(result_str);
+    result_str = tmp;
+
+    tmp = (char*) json_object_get_string(user, "description");
+    tmp = g_strconcat(result_str, "description:", tmp, "\n", NULL);
+    g_free(result_str);
+    result_str = tmp;
+
+    tmp = (char*) json_object_get_string(user, "location");
+    tmp = g_strconcat(result_str, "location:", tmp, "\n", NULL);
+    g_free(result_str);
+    result_str = tmp;
+
+    tmp = (char*) json_object_get_string(user, "url");
+    tmp = g_strconcat(result_str, "url:", tmp, "\n", NULL);
+    g_free(result_str);
+    result_str = tmp;
+
     if (body) free(body);
-    if (path) xmlXPathFreeObject(path);
-    if (ctx) xmlXPathFreeContext(ctx);
-    if (doc) xmlFreeDoc(doc);
     return result_str;
 }
 
@@ -2945,7 +2750,7 @@ favorite_status_thread(gpointer data) {
 
     if (http_status != 200) {
         if (body) {
-            result_str = xml_decode_alloc(body);
+            result_str = g_strdup(body);
         } else {
             result_str = g_strdup(_("unknown server response"));
         }
@@ -3129,7 +2934,7 @@ post_status_thread(gpointer data) {
     }
     if (http_status != 200) {
         if (body) {
-            result_str = xml_decode_alloc(body);
+            result_str = g_strdup(body);
         } else {
             result_str = g_strdup(_("unknown server response"));
         }
@@ -3291,10 +3096,6 @@ input_dialog(GtkWidget* window, const char* message) {
     GtkWidget* label = NULL;
     GtkWidget* entry = NULL;
     char* ret = NULL;
-    char* ptr;
-    char* tmp;
-    const char* request_token = NULL;
-    const char* request_token_secret = NULL;
 
     /* login dialog */
     dialog = gtk_dialog_new();
@@ -3314,6 +3115,7 @@ input_dialog(GtkWidget* window, const char* message) {
 
     entry = gtk_entry_new();
     gtk_label_set_mnemonic_widget(GTK_LABEL(label), entry);
+    gtk_widget_set_sensitive(entry, TRUE);
     gtk_box_pack_start (GTK_BOX (GTK_DIALOG(dialog)->vbox), entry, TRUE, TRUE, 0);
 
     /* show modal dialog */
@@ -3448,7 +3250,6 @@ textview_change_cursor(GtkWidget* textview, gint x, gint y) {
     static gboolean hovering_over_link = FALSE;
     GtkWidget* window = gtk_widget_get_toplevel(textview);
     GSList* tags = NULL;
-    GtkTextBuffer* buffer;
     GtkTextIter iter;
     GtkTooltips* tooltips = NULL;
     gboolean hovering = FALSE;
@@ -3460,7 +3261,6 @@ textview_change_cursor(GtkWidget* textview, gint x, gint y) {
         return;
     }
 
-    buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textview));
     gtk_text_view_get_iter_at_location(GTK_TEXT_VIEW(textview), &iter, x, y);
     tooltips = (GtkTooltips*) g_object_get_data(G_OBJECT(window), "tooltips");
 

@@ -8,7 +8,7 @@ URL:            http://mattn.kaoriya.net
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
-BuildRequires:  gtk2-devel >= 2.4 libxml >= 2.6 curl-devel desktop-file-utils
+BuildRequires:  gtk2-devel >= 2.4 curl-devel desktop-file-utils
 Requires(post): desktop-file-utils
 Requires(postun): desktop-file-utils
 
